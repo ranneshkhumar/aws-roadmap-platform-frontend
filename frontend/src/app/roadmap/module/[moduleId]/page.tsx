@@ -39,10 +39,10 @@ export default function ModulePage({ params }: { params: Promise<{ moduleId: str
   const { moduleId } = use(params);
   
   // Zustand global states
-  const { userResourceProgress, quizReviews, markAsRead, submitQuizScore } = useRoadmapStore();
+  const { modules, userResourceProgress, quizReviews, markAsRead, submitQuizScore } = useRoadmapStore();
   
   // Find module details
-  const moduleData = ROADMAP_MODULES.find((m) => m.id === moduleId);
+  const moduleData = modules.find((m) => m.id === moduleId);
   
   // State controllers
   const [step, setStep] = useState<'reading' | 'quiz-unlock' | 'quiz' | 'review'>('reading');
@@ -69,8 +69,10 @@ export default function ModulePage({ params }: { params: Promise<{ moduleId: str
     if (!moduleData) {
       router.push('/');
     } else {
-      // Build 15 randomized questions for the quiz
-      const pool = generateQuizQuestionsForModule(moduleData.id, moduleData.name);
+      // Build questions from custom quiz questions pool, or fallback to generated templates
+      const pool = moduleData.quizQuestions && moduleData.quizQuestions.length > 0
+        ? moduleData.quizQuestions
+        : generateQuizQuestionsForModule(moduleData.id, moduleData.name);
       
       // Shuffle helper that randomizes both questions and their options
       const shuffled = [...pool]
@@ -93,7 +95,7 @@ export default function ModulePage({ params }: { params: Promise<{ moduleId: str
         .map((q) => ({ q, sort: Math.random() }))
         .sort((a, b) => a.sort - b.sort)
         .map(({ q }) => q)
-        .slice(0, 15);
+        .slice(0, Math.min(pool.length, 15));
       
       setQuizQuestions(shuffled);
     }
@@ -180,6 +182,10 @@ export default function ModulePage({ params }: { params: Promise<{ moduleId: str
 
   // Sync slides with image/text layouts dynamically
   const getSlideLayout = (index: number): 'text-only' | 'text-image' | 'image-only' => {
+    const slide = moduleData.learningContent[index];
+    if (slide && slide.layoutType) {
+      return slide.layoutType;
+    }
     if (index === 1) return 'text-image';
     if (index === 2) return 'image-only';
     return 'text-only';
@@ -215,7 +221,7 @@ export default function ModulePage({ params }: { params: Promise<{ moduleId: str
       setTimeout(() => setShake(false), 500);
       return;
     }
-    if (currentQuizIndex + 1 < 15) {
+    if (currentQuizIndex + 1 < quizQuestions.length) {
       setCurrentQuizIndex((prev) => prev + 1);
     }
   };
@@ -319,6 +325,7 @@ export default function ModulePage({ params }: { params: Promise<{ moduleId: str
                     bullets={moduleData.learningContent[slideIndex].content}
                     layout={getSlideLayout(slideIndex)}
                     iconName={moduleData.iconName}
+                    imageUrl={moduleData.learningContent[slideIndex].imageUrl}
                   />
                 </div>
 
@@ -382,12 +389,12 @@ export default function ModulePage({ params }: { params: Promise<{ moduleId: str
               <QuizEntry
                 question={quizQuestions[currentQuizIndex]}
                 currentIndex={currentQuizIndex}
-                totalQuestions={15}
+                totalQuestions={quizQuestions.length}
                 selectedOption={userAnswers[currentQuizIndex]}
                 onSelectOption={handleOptionSelect}
                 onNext={handleNextQuestion}
                 onPrev={handlePrevQuestion}
-                isLast={currentQuizIndex === 14}
+                isLast={currentQuizIndex === quizQuestions.length - 1}
                 shake={shake}
                 onSubmit={handleQuizSubmit}
               />

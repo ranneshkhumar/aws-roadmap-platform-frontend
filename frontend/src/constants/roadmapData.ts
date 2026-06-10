@@ -8,6 +8,8 @@ export interface QuizQuestion {
 export interface LearningSlide {
   title: string;
   content: string[];
+  layoutType?: 'text-only' | 'text-image' | 'image-only';
+  imageUrl?: string;
 }
 
 export interface ModuleData {
@@ -23,6 +25,7 @@ export interface ModuleData {
   tasks: string[];
   quiz: QuizQuestion;
   learningContent: LearningSlide[];
+  quizQuestions?: QuizQuestion[];
 }
 
 // 1. Initial 17 Core Modules defined statically with detailed text

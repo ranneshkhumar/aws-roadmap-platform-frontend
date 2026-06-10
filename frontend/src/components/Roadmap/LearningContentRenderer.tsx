@@ -9,6 +9,7 @@ interface LearningContentRendererProps {
   bullets: string[];
   layout?: 'text-only' | 'text-image' | 'image-only';
   iconName: string;
+  imageUrl?: string;
 }
 
 // Interactive Inline SVG Illustrations for Layouts
@@ -65,7 +66,8 @@ export const LearningContentRenderer: React.FC<LearningContentRendererProps> = (
   title,
   bullets,
   layout = 'text-only',
-  iconName
+  iconName,
+  imageUrl
 }) => {
   const renderIllustration = () => {
     const name = iconName.toLowerCase();
@@ -78,14 +80,27 @@ export const LearningContentRenderer: React.FC<LearningContentRendererProps> = (
     return <ArchitectureIllustration />;
   };
 
+  const renderVisual = () => {
+    if (imageUrl) {
+      return (
+        <img 
+          src={imageUrl} 
+          alt={title} 
+          className="w-full max-h-[160px] object-contain rounded-lg drop-shadow-md"
+        />
+      );
+    }
+    return renderIllustration();
+  };
+
   if (layout === 'image-only') {
     return (
       <div className="space-y-4">
         <h3 className="text-lg font-black text-slate-950 tracking-tight">{title}</h3>
         <div className="flex flex-col items-center justify-center bg-slate-950 rounded-2xl p-6 border border-slate-800 shadow-inner">
-          {renderIllustration()}
+          {renderVisual()}
           <span className="text-[10px] font-semibold text-slate-500 mt-4 tracking-wider uppercase">
-            Conceptual Architectural Diagram
+            Architectural Diagram
           </span>
         </div>
       </div>
@@ -108,7 +123,7 @@ export const LearningContentRenderer: React.FC<LearningContentRendererProps> = (
             ))}
           </div>
           <div className="bg-slate-950 rounded-2xl p-5 border border-slate-800 shadow-inner flex items-center justify-center">
-            {renderIllustration()}
+            {renderVisual()}
           </div>
         </div>
       </div>

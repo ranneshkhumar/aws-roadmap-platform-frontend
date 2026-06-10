@@ -7,10 +7,16 @@ import { cn } from '@/lib/utils';
 
 interface IntermediateCloudsOverlayProps {
   locked: boolean;
+  top?: number;
+  height?: number;
 }
 
-export const IntermediateCloudsOverlay: React.FC<IntermediateCloudsOverlayProps> = ({ locked }) => {
-  // Define 5 high-quality, sparse clouds stretched across the new intermediate region (y: 1600px to 3150px)
+export const IntermediateCloudsOverlay: React.FC<IntermediateCloudsOverlayProps> = ({ 
+  locked, 
+  top = 1600, 
+  height = 1550 
+}) => {
+  // Define 5 high-quality, sparse clouds stretched across the new intermediate region
   const clouds = [
     { id: 'cloud-1', left: '10%', top: '120px', width: 340, height: 150, driftX: [-10, 15, -10], driftY: [-5, 8, -5], duration: 14, grad: 'grad-dark', partDir: -1 },
     { id: 'cloud-2', left: '25%', top: '450px', width: 380, height: 160, driftX: [-15, 20, -15], driftY: [-8, 10, -8], duration: 18, grad: 'grad-medium', partDir: -1 },
@@ -22,13 +28,17 @@ export const IntermediateCloudsOverlay: React.FC<IntermediateCloudsOverlayProps>
   return (
     <div 
       className={cn(
-        "absolute top-[1600px] left-0 right-0 h-[1550px] z-30 select-none overflow-hidden transition-all duration-1000",
+        "absolute left-0 right-0 z-30 select-none overflow-hidden transition-all duration-1000",
         locked ? "pointer-events-auto" : "pointer-events-none"
       )}
-      style={locked ? {
-        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)',
-        maskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)'
-      } : undefined}
+      style={{
+        top: `${top}px`,
+        height: `${height}px`,
+        ...(locked ? {
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)',
+          maskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)'
+        } : {})
+      }}
     >
       {/* Linear Gradients Definition */}
       <svg className="absolute w-0 h-0">

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import * as Icons from 'lucide-react';
 import { SkyBackground } from './SkyBackground';
 import { RoadmapPath, PathNode } from './RoadmapPath';
@@ -11,8 +12,8 @@ import { BeginnerSummitLandmark, IntermediateSummitLandmark, CloudArchitectSummi
 import { IntermediateCloudsOverlay } from './IntermediateCloudsOverlay';
 import { AdvancedCloudsOverlay } from './AdvancedCloudsOverlay';
 import { RoadmapProgressUpdater } from './RoadmapProgressUpdater';
-import { ROADMAP_MODULES } from '@/constants/roadmapData';
 import { useRoadmapStore } from '@/store/roadmapStore';
+import { calculateRoadmapGeometry } from '@/lib/roadmapGeometry';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -52,7 +53,7 @@ const LevelIslandHeader: React.FC<{
           </h2>
           <span className={cn(
             "text-[10px] font-bold mt-1 font-heading",
-            !locked ? "text-slate-600" : "text-slate-400"
+            !locked ? "text-slate-650" : "text-slate-400"
           )}>
             {completed} / {total} Completed
           </span>
@@ -68,36 +69,6 @@ const LevelIslandHeader: React.FC<{
   );
 };
 
-// Fixed coordinate grid layout for the 18 flagship modules and summits
-const fixedCoordinates: { [key: string]: { x: number; y: number } } = {
-  // Beginner Region (y: 200px to 1520px)
-  'fundamentals': { x: 30, y: 200 },
-  'ec2': { x: 55, y: 420 },
-  's3': { x: 75, y: 640 },
-  'iam': { x: 60, y: 860 },
-  'vpc': { x: 35, y: 1080 },
-  'beanstalk': { x: 24, y: 1300 },
-  'summit_beginner': { x: 50, y: 1520 },
-
-  // Intermediate Region (y: 1820px to 3140px)
-  'cloudfront': { x: 35, y: 1820 },
-  'rds': { x: 20, y: 2040 },
-  'lambda': { x: 40, y: 2260 },
-  'autoscaling': { x: 65, y: 2480 },
-  'cloudwatch': { x: 80, y: 2700 },
-  'amazon_aurora_db': { x: 65, y: 2920 },
-  'summit_intermediate': { x: 50, y: 3140 },
-
-  // Advanced Region (y: 3440px to 4760px)
-  'eks': { x: 35, y: 3440 },
-  'terraform': { x: 20, y: 3660 },
-  'dynamodb': { x: 40, y: 3880 },
-  'sns_sqs': { x: 65, y: 4100 },
-  'step_functions': { x: 80, y: 4320 },
-  'cloudformation': { x: 65, y: 4540 },
-  'summit_advanced': { x: 50, y: 4760 },
-};
-
 interface VisualNode {
   id: string;
   name: string;
@@ -109,7 +80,7 @@ interface VisualNode {
 
 export const RoadmapScreen: React.FC = () => {
   const router = useRouter();
-  const { moduleStates, xp } = useRoadmapStore();
+  const { modules, moduleStates, xp } = useRoadmapStore();
 
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -120,6 +91,16 @@ export const RoadmapScreen: React.FC = () => {
   // Viewport refs for scrolling and path rendering
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
+
+  // Measure dynamic geometry based on store modules list
+  const {
+    coordinates,
+    totalHeight,
+    intermediateStartY,
+    intermediateHeight,
+    advancedStartY,
+    advancedHeight
+  } = calculateRoadmapGeometry(modules);
 
   // Resize handler to measure container width
   useEffect(() => {
@@ -144,31 +125,26 @@ export const RoadmapScreen: React.FC = () => {
     };
   }, []);
 
-  // Split modules list by level
-  const beginnerList = ROADMAP_MODULES.filter((m) => m.level === 'Beginner'); // 6
-  const intermediateList = ROADMAP_MODULES.filter((m) => m.level === 'Intermediate'); // 6
-  const advancedList = ROADMAP_MODULES.filter((m) => m.level === 'Advanced'); // 6
+  // Split modules list by level dynamically
+  const beginnerList = modules.filter((m) => m.level === 'Beginner');
+  const intermediateList = modules.filter((m) => m.level === 'Intermediate');
+  const advancedList = modules.filter((m) => m.level === 'Advanced');
 
   // Check completions of each region to unlock milestones
   const beginnerCompleted = beginnerList.filter((m) => moduleStates[m.id] === 'completed').length;
   const intermediateCompleted = intermediateList.filter((m) => moduleStates[m.id] === 'completed').length;
   const advancedCompleted = advancedList.filter((m) => moduleStates[m.id] === 'completed').length;
-  const totalCompleted = ROADMAP_MODULES.filter((m) => moduleStates[m.id] === 'completed').length;
+  const totalCompleted = modules.filter((m) => moduleStates[m.id] === 'completed').length;
 
-  const isIntermediateLocked = beginnerCompleted < 6;
-  const isAdvancedLocked = intermediateCompleted < 6;
+  const isIntermediateLocked = beginnerCompleted < beginnerList.length;
+  const isAdvancedLocked = intermediateCompleted < intermediateList.length;
 
   let backgroundGradient = '';
   if (isIntermediateLocked && isAdvancedLocked) {
-    // State 1: Both Locked (Beginner vibrant, Intermediate dark grey, Advanced stormy dark)
-    // Smooth transition from Beginner to Intermediate between 25% and 48% height
     backgroundGradient = 'linear-gradient(to bottom, #bae6fd 0%, #e0f2fe 20%, #ffffff 25%, #5a6578 38%, #202735 48%, #1b202e 65%, #05070a 80%, #000000 100%)';
   } else if (isAdvancedLocked) {
-    // State 2: Intermediate Unlocked, Advanced Locked (Beginner & Intermediate vibrant, Advanced stormy dark)
-    // Smooth transition from Intermediate to Advanced between 58% and 76% height
     backgroundGradient = 'linear-gradient(to bottom, #bae6fd 0%, #e0f2fe 20%, #ffffff 30%, #f0f9ff 45%, #ffffff 58%, #1f2430 68%, #05070a 76%, #000000 100%)';
   } else {
-    // State 3: All Unlocked (All vibrant sky gradient)
     backgroundGradient = 'linear-gradient(to bottom, #bae6fd 0%, #e0f2fe 20%, #ffffff 40%, #f0f9ff 70%, #e0f2fe 100%)';
   }
 
@@ -184,13 +160,13 @@ export const RoadmapScreen: React.FC = () => {
 
   // Map coordinates and statuses for paths
   const pathNodes: PathNode[] = visualNodesList.map((node) => {
-    const coord = fixedCoordinates[node.id] || { x: 50, y: 200 };
+    const coord = coordinates[node.id] || { x: 50, y: 200 };
     const nodeStatus = node.type === 'summit'
       ? (node.id === 'summit_beginner'
-        ? (beginnerCompleted === 6 ? 'completed' as const : 'locked' as const)
+        ? (beginnerCompleted === beginnerList.length ? 'completed' as const : 'locked' as const)
         : node.id === 'summit_intermediate'
-          ? (intermediateCompleted === 6 ? 'completed' as const : 'locked' as const)
-          : (totalCompleted === 18 ? 'completed' as const : 'locked' as const))
+          ? (intermediateCompleted === intermediateList.length ? 'completed' as const : 'locked' as const)
+          : (totalCompleted === modules.length ? 'completed' as const : 'locked' as const))
       : (moduleStates[node.id] || 'locked');
 
     return {
@@ -203,17 +179,17 @@ export const RoadmapScreen: React.FC = () => {
 
   // Scroll to active node or beginner on mount
   useEffect(() => {
-    if (!mapContainerRef.current) return;
-    const activeNode = ROADMAP_MODULES.find((m) => moduleStates[m.id] === 'current') || ROADMAP_MODULES[0];
-    const activeCoord = fixedCoordinates[activeNode.id];
+    if (!mapContainerRef.current || modules.length === 0) return;
+    const activeNode = modules.find((m) => moduleStates[m.id] === 'current') || modules[0];
+    const activeCoord = coordinates[activeNode.id];
     if (activeCoord && mapContainerRef.current) {
       const scrollPos = activeCoord.y - window.innerHeight / 2 + 200;
       mapContainerRef.current.scrollTop = Math.max(0, scrollPos);
     }
-  }, [moduleStates]);
+  }, [moduleStates, modules, coordinates]);
 
-  const selectedModule = ROADMAP_MODULES.find((m) => m.id === selectedModuleId) || null;
-  const activeNode = ROADMAP_MODULES.find((m) => moduleStates[m.id] === 'current') || ROADMAP_MODULES[0];
+  const selectedModule = modules.find((m) => m.id === selectedModuleId) || null;
+  const activeNode = modules.find((m) => moduleStates[m.id] === 'current') || modules[0] || { id: '', name: 'Start', level: 'Beginner', points: 50 };
 
   useEffect(() => {
     if (activeNode) {
@@ -243,6 +219,10 @@ export const RoadmapScreen: React.FC = () => {
     { id: 'fg-c4', top: '2250px', width: 370, duration: 62, direction: -1, blur: 'blur-md' },
   ];
 
+  // Dynamic values for intermediate / advanced card positioning
+  const intermediateCardTop = intermediateStartY - 140;
+  const advancedCardTop = advancedStartY - 160;
+
   return (
     <div className="flex-1 flex flex-col h-screen w-screen relative overflow-hidden select-none font-sans text-slate-800 bg-transparent">
       
@@ -258,7 +238,7 @@ export const RoadmapScreen: React.FC = () => {
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block font-heading">
               CONTINUE YOUR JOURNEY
             </span>
-            <span className="text-base font-black text-slate-900 block leading-tight font-heading mt-0.5">
+            <span className="text-base font-black text-slate-900 block leading-tight font-heading mt-0.5 animate-pulse">
               Current Mission: {activeNode.name}
             </span>
             <div className="flex items-center gap-3 mt-1 text-[11px] font-extrabold text-slate-500">
@@ -267,8 +247,15 @@ export const RoadmapScreen: React.FC = () => {
               </span>
               <span className="text-slate-200">|</span>
               <span className="flex items-center gap-1 text-cyan-600">
-                <Icons.CheckCircle2 className="w-3.5 h-3.5" /> Progress: {totalCompleted} / 18 Modules
+                <Icons.CheckCircle2 className="w-3.5 h-3.5" /> Progress: {totalCompleted} / {modules.length} Modules
               </span>
+              <span className="text-slate-200">|</span>
+              <Link 
+                href="/core"
+                className="flex items-center gap-1 text-indigo-650 hover:underline font-bold"
+              >
+                <Icons.Sliders className="w-3.5 h-3.5" /> CMS Dashboard
+              </Link>
             </div>
           </div>
         </div>
@@ -290,7 +277,7 @@ export const RoadmapScreen: React.FC = () => {
           <button 
             onClick={() => {
               // Scroll to active node
-              const activeCoord = fixedCoordinates[activeNode.id];
+              const activeCoord = coordinates[activeNode.id];
               if (activeCoord && mapContainerRef.current) {
                 const scrollPos = activeCoord.y - window.innerHeight / 2 + 200;
                 mapContainerRef.current.scrollTo({ top: Math.max(0, scrollPos), behavior: 'smooth' });
@@ -334,7 +321,7 @@ export const RoadmapScreen: React.FC = () => {
         <button 
           onClick={() => {
             if (mapContainerRef.current) {
-              mapContainerRef.current.scrollTo({ top: 1520, behavior: 'smooth' });
+              mapContainerRef.current.scrollTo({ top: intermediateStartY - 120, behavior: 'smooth' });
             }
             setActiveTab('intermediate');
           }}
@@ -350,7 +337,7 @@ export const RoadmapScreen: React.FC = () => {
             WebkitBackdropFilter: 'blur(8px)',
           }}
         >
-          {beginnerCompleted < 6 ? (
+          {isIntermediateLocked ? (
             <Icons.Lock className="w-4 h-4 text-blue-900" />
           ) : (
             <Icons.Zap className="w-4 h-4 fill-current text-blue-900" />
@@ -361,7 +348,7 @@ export const RoadmapScreen: React.FC = () => {
         <button 
           onClick={() => {
             if (mapContainerRef.current) {
-              mapContainerRef.current.scrollTo({ top: 3120, behavior: 'smooth' });
+              mapContainerRef.current.scrollTo({ top: advancedStartY - 140, behavior: 'smooth' });
             }
             setActiveTab('advanced');
           }}
@@ -377,7 +364,7 @@ export const RoadmapScreen: React.FC = () => {
             WebkitBackdropFilter: 'blur(8px)',
           }}
         >
-          {totalCompleted < 12 ? (
+          {isAdvancedLocked ? (
             <Icons.Lock className="w-4 h-4 text-amber-950" />
           ) : (
             <Icons.Trophy className="w-4 h-4 fill-current text-amber-950" />
@@ -398,7 +385,8 @@ export const RoadmapScreen: React.FC = () => {
         {/* Board container shifted down to not collide with header at scroll top */}
         <div 
           ref={boardRef}
-          className="relative h-[5000px] w-full z-10 mt-[140px]"
+          className="relative w-full z-10 mt-[140px]"
+          style={{ height: `${totalHeight}px` }}
         >
           {/* Connected Curves dynamic path generator */}
           <RoadmapPath nodes={pathNodes} width={boardWidth} />
@@ -454,7 +442,7 @@ export const RoadmapScreen: React.FC = () => {
               number="1"
               title="Beginner"
               completed={beginnerCompleted}
-              total={6}
+              total={beginnerList.length}
               description="Build your foundation and learn the core of AWS Cloud."
               levelColor="beginner"
               locked={false}
@@ -462,80 +450,102 @@ export const RoadmapScreen: React.FC = () => {
           </div>
 
           {/* START HERE BADGE WITH FLAG */}
-          <div 
-            className="absolute z-30 flex flex-col items-center"
-            style={{
-              left: `calc(30% - 60px)`,
-              top: '120px'
-            }}
-          >
-            <div className="bg-[#0dce88] text-slate-950 font-black text-[9px] px-3 py-1 rounded-full border border-white tracking-widest shadow-[0_0_15px_rgba(13,206,136,0.3)] animate-pulse flex items-center gap-1 font-heading">
-              START HERE
+          {coordinates['fundamentals'] && (
+            <div 
+              className="absolute z-30 flex flex-col items-center"
+              style={{
+                left: `calc(${coordinates['fundamentals'].x}% - 60px)`,
+                top: `${coordinates['fundamentals'].y - 80}px`
+              }}
+            >
+              <div className="bg-[#0dce88] text-slate-950 font-black text-[9px] px-3 py-1 rounded-full border border-white tracking-widest shadow-[0_0_15px_rgba(13,206,136,0.3)] animate-pulse flex items-center gap-1 font-heading">
+                START HERE
+              </div>
+              {/* Tiny red flag flagpost */}
+              <div className="w-0.5 h-8 bg-rose-500 relative">
+                <div className="absolute top-0 right-0 w-2.5 h-2 bg-rose-500 rounded-sm" />
+              </div>
             </div>
-            {/* Tiny red flag flagpost */}
-            <div className="w-0.5 h-8 bg-rose-500 relative">
-              <div className="absolute top-0 right-0 w-2.5 h-2 bg-rose-500 rounded-sm" />
-            </div>
-          </div>
+          )}
 
           {/* CANVAS REGION TITLE: LEVEL 2 INTERMEDIATE */}
-          <div className="absolute left-[20px] top-[1500px] z-20">
+          <div 
+            className="absolute left-[20px] z-20 transition-all duration-1000"
+            style={{ top: `${intermediateCardTop}px` }}
+          >
             <LevelIslandHeader
               number="2"
               title="Intermediate"
               completed={intermediateCompleted}
-              total={6}
+              total={intermediateList.length}
               description="Deepen your knowledge and build real-world cloud solutions."
               levelColor="intermediate"
-              locked={beginnerCompleted < 6}
+              locked={isIntermediateLocked}
             />
           </div>
 
           {/* CANVAS REGION TITLE: LEVEL 3 ADVANCED */}
-          <div className="absolute left-[20px] top-[3100px] z-20">
+          <div 
+            className="absolute left-[20px] z-20 transition-all duration-1000"
+            style={{ top: `${advancedCardTop}px` }}
+          >
             <LevelIslandHeader
               number="3"
               title="Advanced"
               completed={advancedCompleted}
-              total={6}
+              total={advancedList.length}
               description="Master advanced services and become a cloud architect."
               levelColor="advanced"
-              locked={intermediateCompleted < 6}
+              locked={isAdvancedLocked}
             />
           </div>
 
           {/* RENDER SUMMITS & CASTLE LANDMARKS */}
           
           {/* Beginner Summit */}
-          <BeginnerSummitLandmark 
-            x={fixedCoordinates['summit_beginner'].x} 
-            y={fixedCoordinates['summit_beginner'].y} 
-            locked={beginnerCompleted < 6} 
-          />
+          {coordinates['summit_beginner'] && (
+            <BeginnerSummitLandmark 
+              x={coordinates['summit_beginner'].x} 
+              y={coordinates['summit_beginner'].y} 
+              locked={isIntermediateLocked} 
+            />
+          )}
 
           {/* Intermediate Summit */}
-          <IntermediateSummitLandmark 
-            x={fixedCoordinates['summit_intermediate'].x} 
-            y={fixedCoordinates['summit_intermediate'].y} 
-            locked={intermediateCompleted < 6} 
-          />
+          {coordinates['summit_intermediate'] && (
+            <IntermediateSummitLandmark 
+              x={coordinates['summit_intermediate'].x} 
+              y={coordinates['summit_intermediate'].y} 
+              locked={isAdvancedLocked} 
+            />
+          )}
 
           {/* Intermediate region cloud cover overlay */}
-          <IntermediateCloudsOverlay locked={beginnerCompleted < 6} />
-
-          {/* Advanced region cloud cover overlay */}
-          <AdvancedCloudsOverlay locked={intermediateCompleted < 6} />
-
-          {/* Advanced Castle Summit */}
-          <CloudArchitectSummitLandmark 
-            x={fixedCoordinates['summit_advanced'].x} 
-            y={fixedCoordinates['summit_advanced'].y} 
-            locked={totalCompleted < 18} 
+          <IntermediateCloudsOverlay 
+            locked={isIntermediateLocked} 
+            top={intermediateStartY} 
+            height={intermediateHeight} 
           />
 
+          {/* Advanced region cloud cover overlay */}
+          <AdvancedCloudsOverlay 
+            locked={isAdvancedLocked} 
+            top={advancedStartY} 
+            height={advancedHeight} 
+          />
+
+          {/* Advanced Castle Summit */}
+          {coordinates['summit_advanced'] && (
+            <CloudArchitectSummitLandmark 
+              x={coordinates['summit_advanced'].x} 
+              y={coordinates['summit_advanced'].y} 
+              locked={totalCompleted < modules.length} 
+            />
+          )}
+
           {/* RENDER ISLAND NODES */}
-          {ROADMAP_MODULES.map((module, idx) => {
-            const coord = fixedCoordinates[module.id];
+          {modules.map((module, idx) => {
+            const coord = coordinates[module.id];
             if (!coord) return null;
             const status = moduleStates[module.id] || 'locked';
 

@@ -7,10 +7,16 @@ import { cn } from '@/lib/utils';
 
 interface AdvancedCloudsOverlayProps {
   locked: boolean;
+  top?: number;
+  height?: number;
 }
 
-export const AdvancedCloudsOverlay: React.FC<AdvancedCloudsOverlayProps> = ({ locked }) => {
-  // Define 5 high-quality, sparse clouds stretched across the new advanced region (y: 3200px to 4750px)
+export const AdvancedCloudsOverlay: React.FC<AdvancedCloudsOverlayProps> = ({ 
+  locked, 
+  top = 3200, 
+  height = 1600 
+}) => {
+  // Define 5 high-quality, sparse clouds stretched across the new advanced region
   const clouds = [
     { id: 'adv-cloud-1', left: '8%', top: '150px', width: 360, height: 160, driftX: [-15, 15, -15], driftY: [-6, 8, -6], duration: 15, grad: 'adv-grad-dark', partDir: -1 },
     { id: 'adv-cloud-2', left: '22%', top: '480px', width: 400, height: 170, driftX: [-20, 20, -20], driftY: [-8, 10, -8], duration: 19, grad: 'adv-grad-medium', partDir: -1 },
@@ -22,13 +28,17 @@ export const AdvancedCloudsOverlay: React.FC<AdvancedCloudsOverlayProps> = ({ lo
   return (
     <div 
       className={cn(
-        "absolute top-[3200px] left-0 right-0 h-[1600px] z-30 select-none overflow-hidden transition-all duration-1000",
+        "absolute left-0 right-0 z-30 select-none overflow-hidden transition-all duration-1000",
         locked ? "pointer-events-auto" : "pointer-events-none"
       )}
-      style={locked ? {
-        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)',
-        maskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)'
-      } : undefined}
+      style={{
+        top: `${top}px`,
+        height: `${height}px`,
+        ...(locked ? {
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)',
+          maskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)'
+        } : {})
+      }}
     >
       {/* Linear Gradients Definition */}
       <svg className="absolute w-0 h-0">
