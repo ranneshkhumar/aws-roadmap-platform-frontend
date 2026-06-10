@@ -27,26 +27,14 @@ export const RoadmapPath: React.FC<RoadmapPathProps> = ({ nodes, width }) => {
     const x2 = (endNode.x / 100) * width;
     const y2 = endNode.y;
 
-    const dx = Math.abs(x2 - x1);
     const dy = Math.abs(y2 - y1);
     
-    let cp1x = x1;
-    let cp1y = y1;
-    let cp2x = x2;
-    let cp2y = y2;
-
-    // Determine direction for smooth Bezier curves
-    if (dx > dy) {
-      // Primarily horizontal transition
-      const offset = dx * 0.55;
-      cp1x = x1 + offset;
-      cp2x = x2 - offset;
-    } else {
-      // Primarily vertical transition
-      const offset = dy * 0.55;
-      cp1y = y1 + offset;
-      cp2y = y2 - offset;
-    }
+    // Always use vertical tangents for a winding vertical river path (Duolingo style)
+    const offset = dy * 0.5;
+    const cp1x = x1;
+    const cp1y = y1 + offset;
+    const cp2x = x2;
+    const cp2y = y2 - offset;
 
     const pathData = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
 

@@ -9,6 +9,7 @@ import { CloudIslandNode } from './CloudIslandNode';
 import { MissionDetailsDrawer } from './MissionDetailsDrawer';
 import { BeginnerSummitLandmark, IntermediateSummitLandmark, CloudArchitectSummitLandmark } from './MilestoneLandmark';
 import { IntermediateCloudsOverlay } from './IntermediateCloudsOverlay';
+import { AdvancedCloudsOverlay } from './AdvancedCloudsOverlay';
 import { RoadmapProgressUpdater } from './RoadmapProgressUpdater';
 import { ROADMAP_MODULES } from '@/constants/roadmapData';
 import { useRoadmapStore } from '@/store/roadmapStore';
@@ -22,21 +23,43 @@ const LevelIslandHeader: React.FC<{
   total: number;
   description: string;
   levelColor: 'beginner' | 'intermediate' | 'advanced';
-}> = ({ number, title, completed, total, description, levelColor }) => {
+  locked: boolean;
+}> = ({ number, title, completed, total, description, levelColor, locked }) => {
+  const containerClasses = cn(
+    "w-[260px] border transition-all duration-300 select-none rounded-[22px]",
+    !locked
+      ? "gradient-container border-slate-200/50 shadow-md hover:shadow-xl hover:-translate-y-0.5 text-slate-800"
+      : levelColor === 'intermediate'
+        ? "bg-slate-700/70 border-slate-600/50 shadow-none text-slate-350"
+        : "bg-slate-900/80 border-slate-800/50 shadow-none text-slate-400"
+  );
+
   return (
-    <div className="w-[260px] gradient-container border border-slate-200/50 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 select-none text-slate-800">
-      <div className="gradient-overlay p-5">
+    <div className={containerClasses}>
+      <div className={cn(locked ? "p-5" : "gradient-overlay p-5")}>
         <div className="relative z-10 flex flex-col">
-          <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest font-heading">
+          <span className={cn(
+            "text-[9px] font-black uppercase tracking-widest block font-heading",
+            !locked ? "text-slate-500" : "text-slate-400"
+          )}>
             LEVEL {number}
           </span>
-          <h2 className="text-base font-black text-slate-950 leading-tight mt-0.5 tracking-tight font-heading">
+          <h2 className={cn(
+            "text-base font-black leading-tight mt-0.5 tracking-tight font-heading",
+            !locked ? "text-slate-950" : "text-slate-100"
+          )}>
             {title}
           </h2>
-          <span className="text-[10px] font-bold text-slate-600 mt-1 font-heading">
+          <span className={cn(
+            "text-[10px] font-bold mt-1 font-heading",
+            !locked ? "text-slate-600" : "text-slate-400"
+          )}>
             {completed} / {total} Completed
           </span>
-          <p className="text-[11px] text-slate-650 leading-snug mt-2 font-medium">
+          <p className={cn(
+            "text-[11px] leading-snug mt-2 font-medium",
+            !locked ? "text-slate-650" : "text-slate-300"
+          )}>
             {description}
           </p>
         </div>
@@ -47,32 +70,32 @@ const LevelIslandHeader: React.FC<{
 
 // Fixed coordinate grid layout for the 18 flagship modules and summits
 const fixedCoordinates: { [key: string]: { x: number; y: number } } = {
-  // Beginner Region (y: 200px to 760px)
+  // Beginner Region (y: 200px to 1520px)
   'fundamentals': { x: 30, y: 200 },
-  'ec2': { x: 55, y: 290 },
-  's3': { x: 80, y: 380 },
-  'iam': { x: 80, y: 490 },
-  'vpc': { x: 55, y: 580 },
-  'beanstalk': { x: 30, y: 670 },
-  'summit_beginner': { x: 55, y: 760 },
+  'ec2': { x: 55, y: 420 },
+  's3': { x: 75, y: 640 },
+  'iam': { x: 60, y: 860 },
+  'vpc': { x: 35, y: 1080 },
+  'beanstalk': { x: 24, y: 1300 },
+  'summit_beginner': { x: 50, y: 1520 },
 
-  // Intermediate Region (y: 1040px to 1610px)
-  'cloudfront': { x: 80, y: 1040 },
-  'rds': { x: 55, y: 1130 },
-  'lambda': { x: 30, y: 1220 },
-  'autoscaling': { x: 30, y: 1330 },
-  'cloudwatch': { x: 55, y: 1420 },
-  'amazon_aurora_db': { x: 80, y: 1510 },
-  'summit_intermediate': { x: 55, y: 1610 },
+  // Intermediate Region (y: 1820px to 3140px)
+  'cloudfront': { x: 35, y: 1820 },
+  'rds': { x: 20, y: 2040 },
+  'lambda': { x: 40, y: 2260 },
+  'autoscaling': { x: 65, y: 2480 },
+  'cloudwatch': { x: 80, y: 2700 },
+  'amazon_aurora_db': { x: 65, y: 2920 },
+  'summit_intermediate': { x: 50, y: 3140 },
 
-  // Advanced Region (y: 1880px to 2470px)
-  'eks': { x: 80, y: 1880 },
-  'terraform': { x: 55, y: 1970 },
-  'dynamodb': { x: 30, y: 2060 },
-  'sns_sqs': { x: 30, y: 2170 },
-  'step_functions': { x: 55, y: 2260 },
-  'cloudformation': { x: 80, y: 2350 },
-  'summit_advanced': { x: 55, y: 2470 },
+  // Advanced Region (y: 3440px to 4760px)
+  'eks': { x: 35, y: 3440 },
+  'terraform': { x: 20, y: 3660 },
+  'dynamodb': { x: 40, y: 3880 },
+  'sns_sqs': { x: 65, y: 4100 },
+  'step_functions': { x: 80, y: 4320 },
+  'cloudformation': { x: 65, y: 4540 },
+  'summit_advanced': { x: 50, y: 4760 },
 };
 
 interface VisualNode {
@@ -131,6 +154,23 @@ export const RoadmapScreen: React.FC = () => {
   const intermediateCompleted = intermediateList.filter((m) => moduleStates[m.id] === 'completed').length;
   const advancedCompleted = advancedList.filter((m) => moduleStates[m.id] === 'completed').length;
   const totalCompleted = ROADMAP_MODULES.filter((m) => moduleStates[m.id] === 'completed').length;
+
+  const isIntermediateLocked = beginnerCompleted < 6;
+  const isAdvancedLocked = intermediateCompleted < 6;
+
+  let backgroundGradient = '';
+  if (isIntermediateLocked && isAdvancedLocked) {
+    // State 1: Both Locked (Beginner vibrant, Intermediate dark grey, Advanced stormy dark)
+    // Smooth transition from Beginner to Intermediate between 25% and 48% height
+    backgroundGradient = 'linear-gradient(to bottom, #bae6fd 0%, #e0f2fe 20%, #ffffff 25%, #5a6578 38%, #202735 48%, #1b202e 65%, #05070a 80%, #000000 100%)';
+  } else if (isAdvancedLocked) {
+    // State 2: Intermediate Unlocked, Advanced Locked (Beginner & Intermediate vibrant, Advanced stormy dark)
+    // Smooth transition from Intermediate to Advanced between 58% and 76% height
+    backgroundGradient = 'linear-gradient(to bottom, #bae6fd 0%, #e0f2fe 20%, #ffffff 30%, #f0f9ff 45%, #ffffff 58%, #1f2430 68%, #05070a 76%, #000000 100%)';
+  } else {
+    // State 3: All Unlocked (All vibrant sky gradient)
+    backgroundGradient = 'linear-gradient(to bottom, #bae6fd 0%, #e0f2fe 20%, #ffffff 40%, #f0f9ff 70%, #e0f2fe 100%)';
+  }
 
   // Build visual node list
   const visualNodesList: VisualNode[] = [
@@ -207,7 +247,7 @@ export const RoadmapScreen: React.FC = () => {
     <div className="flex-1 flex flex-col h-screen w-screen relative overflow-hidden select-none font-sans text-slate-800 bg-transparent">
       
       {/* 1. FIXED TOP HEADER PANEL (Matches screenshot) */}
-      <header className="absolute top-4 left-6 right-6 z-50 bg-white/95 border border-slate-200/50 rounded-3xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur-md max-w-7xl mx-auto pointer-events-auto">
+      <header className="absolute top-4 left-6 right-6 z-50 bg-white/95 border border-slate-200/50 rounded-3xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur-md w-auto pointer-events-auto">
         {/* Left Side: Current Mission Info */}
         <div className="flex items-center gap-4 w-full md:w-auto">
           {/* Green circle with > icon */}
@@ -294,7 +334,7 @@ export const RoadmapScreen: React.FC = () => {
         <button 
           onClick={() => {
             if (mapContainerRef.current) {
-              mapContainerRef.current.scrollTo({ top: 960, behavior: 'smooth' });
+              mapContainerRef.current.scrollTo({ top: 1520, behavior: 'smooth' });
             }
             setActiveTab('intermediate');
           }}
@@ -321,7 +361,7 @@ export const RoadmapScreen: React.FC = () => {
         <button 
           onClick={() => {
             if (mapContainerRef.current) {
-              mapContainerRef.current.scrollTo({ top: 1800, behavior: 'smooth' });
+              mapContainerRef.current.scrollTo({ top: 3120, behavior: 'smooth' });
             }
             setActiveTab('advanced');
           }}
@@ -350,6 +390,7 @@ export const RoadmapScreen: React.FC = () => {
       <div 
         ref={mapContainerRef}
         className="w-full flex-1 overflow-y-auto overflow-x-hidden scrollbar-none relative z-10"
+        style={{ background: backgroundGradient }}
       >
         {/* Animated Sky background */}
         <SkyBackground />
@@ -357,7 +398,7 @@ export const RoadmapScreen: React.FC = () => {
         {/* Board container shifted down to not collide with header at scroll top */}
         <div 
           ref={boardRef}
-          className="relative h-[2700px] w-full max-w-5xl mx-auto z-10 mt-[140px]"
+          className="relative h-[5000px] w-full z-10 mt-[140px]"
         >
           {/* Connected Curves dynamic path generator */}
           <RoadmapPath nodes={pathNodes} width={boardWidth} />
@@ -416,6 +457,7 @@ export const RoadmapScreen: React.FC = () => {
               total={6}
               description="Build your foundation and learn the core of AWS Cloud."
               levelColor="beginner"
+              locked={false}
             />
           </div>
 
@@ -437,7 +479,7 @@ export const RoadmapScreen: React.FC = () => {
           </div>
 
           {/* CANVAS REGION TITLE: LEVEL 2 INTERMEDIATE */}
-          <div className="absolute left-[20px] top-[860px] z-20">
+          <div className="absolute left-[20px] top-[1500px] z-20">
             <LevelIslandHeader
               number="2"
               title="Intermediate"
@@ -445,11 +487,12 @@ export const RoadmapScreen: React.FC = () => {
               total={6}
               description="Deepen your knowledge and build real-world cloud solutions."
               levelColor="intermediate"
+              locked={beginnerCompleted < 6}
             />
           </div>
 
           {/* CANVAS REGION TITLE: LEVEL 3 ADVANCED */}
-          <div className="absolute left-[20px] top-[1700px] z-20">
+          <div className="absolute left-[20px] top-[3100px] z-20">
             <LevelIslandHeader
               number="3"
               title="Advanced"
@@ -457,6 +500,7 @@ export const RoadmapScreen: React.FC = () => {
               total={6}
               description="Master advanced services and become a cloud architect."
               levelColor="advanced"
+              locked={intermediateCompleted < 6}
             />
           </div>
 
@@ -478,6 +522,9 @@ export const RoadmapScreen: React.FC = () => {
 
           {/* Intermediate region cloud cover overlay */}
           <IntermediateCloudsOverlay locked={beginnerCompleted < 6} />
+
+          {/* Advanced region cloud cover overlay */}
+          <AdvancedCloudsOverlay locked={intermediateCompleted < 6} />
 
           {/* Advanced Castle Summit */}
           <CloudArchitectSummitLandmark 

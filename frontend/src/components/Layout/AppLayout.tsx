@@ -9,10 +9,7 @@ interface AppLayoutProps {
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   return (
     <div 
-      className="min-h-screen w-screen text-slate-100 overflow-x-hidden font-sans relative flex flex-col"
-      style={{
-        background: 'linear-gradient(to bottom, #E0F2FE 0%, #F0F9FF 50%, #FFFFFF 100%)'
-      }}
+      className="min-h-screen w-screen text-slate-100 overflow-x-hidden font-sans relative flex flex-col bg-slate-950"
     >
       
       {/* Render core screen viewports */}
