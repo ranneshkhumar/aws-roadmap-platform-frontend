@@ -80,7 +80,7 @@ interface VisualNode {
 
 export const RoadmapScreen: React.FC = () => {
   const router = useRouter();
-  const { modules, moduleStates, xp } = useRoadmapStore();
+  const { modules, moduleStates, xp, streak } = useRoadmapStore();
 
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -254,6 +254,10 @@ export const RoadmapScreen: React.FC = () => {
                 <Icons.Award className="w-3.5 h-3.5" /> Total XP: {xp} XP
               </span>
               <span className="text-slate-200">|</span>
+              <span className="flex items-center gap-1 text-orange-650">
+                <Icons.Flame className="w-3.5 h-3.5 text-orange-500 fill-current animate-pulse" /> {streak} Day Streak
+              </span>
+              <span className="text-slate-200">|</span>
               <Link 
                 href="/core"
                 className="flex items-center gap-1 text-indigo-650 hover:underline font-bold"
@@ -266,6 +270,19 @@ export const RoadmapScreen: React.FC = () => {
 
         {/* Right Side: Reward & Resume */}
         <div className="flex items-center gap-4 w-full md:w-auto justify-end">
+          {/* Streak Badge */}
+          <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-2">
+            <Icons.Flame className="w-5 h-5 text-orange-500 fill-current animate-pulse" />
+            <div>
+              <span className="text-[9px] font-extrabold text-slate-450 uppercase tracking-wider block font-heading">
+                STREAK
+              </span>
+              <span className="text-xs font-black text-slate-850 block leading-tight">
+                {streak} Days
+              </span>
+            </div>
+          </div>
+
           {/* Total XP Badge */}
           <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl px-4 py-2.5 flex items-center gap-2">
             <Icons.Trophy className="w-5 h-5 text-indigo-600 fill-current" />
