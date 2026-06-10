@@ -7,13 +7,6 @@ import { useRoadmapStore } from '@/store/roadmapStore';
 import { QuizEntry } from '@/components/Roadmap/QuizEntry';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
-
-interface PDFInfo {
-  filename: string;
-  filesize: string;
-  lastModified: string;
-}
 
 export default function QuizEditorPage() {
   const params = useParams();
@@ -23,15 +16,6 @@ export default function QuizEditorPage() {
 
   const moduleData = modules.find((m) => m.id === moduleId);
   const [activeQuestionIdx, setActiveQuestionIdx] = useState(0);
-
-  // PDF info state
-  const [pdfInfo, setPdfInfo] = useState<PDFInfo | null>(null);
-  
-  // Importer states
-  const [importText, setImportText] = useState('');
-  const [importFormat, setImportFormat] = useState<'JSON' | 'CSV'>('JSON');
-  const [importError, setImportError] = useState<string | null>(null);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Student simulation quiz preview states
   const [simSelectedIdx, setSimSelectedIdx] = useState<number | null>(null);
@@ -120,77 +104,7 @@ export default function QuizEditorPage() {
     updateActiveQuestion({ options: updatedOptions });
   };
 
-  // PDF Selector handler
-  const handlePDFSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
 
-    const sizeKB = (file.size / 1024).toFixed(1);
-    const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-    const sizeStr = file.size > 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
-
-    setPdfInfo({
-      filename: file.name,
-      filesize: sizeStr,
-      lastModified: new Date(file.lastModified).toLocaleDateString()
-    });
-  };
-
-  // Bulk parser CSV / JSON
-  const handleImport = () => {
-    setImportError(null);
-    try {
-      if (!importText.trim()) {
-        setImportError("Input content is empty");
-        return;
-      }
-
-      let parsedQuestions: typeof questions = [];
-
-      if (importFormat === 'JSON') {
-        const rawData = JSON.parse(importText);
-        if (!Array.isArray(rawData)) {
-          throw new Error("JSON payload must be a top-level array of questions.");
-        }
-        parsedQuestions = rawData.map((item: any, i) => {
-          if (!item.question || !Array.isArray(item.options) || item.options.length !== 4) {
-            throw new Error(`Question at index ${i} requires 'question' string and 'options' array with 4 items.`);
-          }
-          return {
-            question: String(item.question),
-            options: item.options.map(String),
-            answerIndex: typeof item.answerIndex === 'number' ? Math.min(Math.max(0, item.answerIndex), 3) : 0,
-            explanation: String(item.explanation || 'Imported via JSON')
-          };
-        });
-      } else {
-        // Simple Quote-aware CSV parser
-        const lines = importText.split(/\r?\n/).filter((l) => l.trim());
-        parsedQuestions = lines.map((line, lineIdx) => {
-          const matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || line.split(',');
-          const cells = matches.map((cell) => cell.replace(/^["']|["']$/g, '').trim());
-          
-          if (cells.length < 6) {
-            throw new Error(`CSV Line ${lineIdx + 1} has insufficient columns (Requires: question, optA, optB, optC, optD, answerIndex, explanation)`);
-          }
-          return {
-            question: cells[0],
-            options: [cells[1], cells[2], cells[3], cells[4]],
-            answerIndex: Math.min(Math.max(0, parseInt(cells[5]) || 0), 3),
-            explanation: cells[6] || 'Imported via CSV'
-          };
-        });
-      }
-
-      updateQuestions([...questions, ...parsedQuestions]);
-      setImportText('');
-      setImportError(null);
-      setIsImportModalOpen(false);
-      alert(`Successfully imported ${parsedQuestions.length} questions.`);
-    } catch (err: any) {
-      setImportError(err.message || "An error occurred during parsing");
-    }
-  };
 
   return (
     <div className="space-y-6 flex flex-col h-full">
@@ -214,134 +128,75 @@ export default function QuizEditorPage() {
               </h2>
             </div>
             <p className="text-[11px] text-slate-500 mt-1 font-semibold">
-              Add curriculum assessments, bulk import question pools, and configure answers.
+              Create, manage, and validate assessment questions for this learning module.
             </p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsImportModalOpen(true)}
-            className="bg-slate-100 hover:bg-slate-200 border border-slate-205 text-xs font-black px-4 py-2.5 rounded-xl transition-all text-slate-700 flex items-center gap-1.5 shadow-sm"
-          >
-            <Icons.Upload className="w-4 h-4 font-bold" />
-            Bulk Import
-          </button>
         </div>
       </div>
 
       {/* Main split splits */}
       <div className="flex-1 flex gap-6 min-h-0">
         
-        {/* Pane 1: QUESTION LIST & PDF UPLOADS (25% width) */}
-        <div className="w-72 bg-white border border-slate-205 rounded-3xl p-4 flex flex-col justify-between overflow-y-auto flex-shrink-0 gap-5 shadow-sm">
-          
-          <div className="space-y-4 flex-1 flex flex-col min-h-0">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-450 block font-heading">
-              Assessment Pool ({questions.length})
-            </span>
+        {/* Pane 1: QUESTION LIST (25% width) */}
+        <div className="w-72 bg-white border border-slate-205 rounded-3xl p-4 flex flex-col overflow-y-auto flex-shrink-0 gap-4 shadow-sm">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-450 block font-heading">
+            Assessment Pool ({questions.length})
+          </span>
 
-            {/* Scrollable Questions list */}
-            <div className="space-y-2 flex-1 overflow-y-auto pr-1 scrollbar-thin">
-              {questions.map((q, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => setActiveQuestionIdx(idx)}
-                  className={cn(
-                    "p-3 rounded-xl border transition-all duration-200 cursor-pointer flex flex-col gap-1.5 relative group",
-                    activeQuestionIdx === idx
-                      ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-bold"
-                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-extrabold uppercase text-slate-400">
-                      Q{idx + 1}
-                    </span>
-                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDuplicateQuestion(idx);
-                        }}
-                        className="p-0.5 rounded bg-white hover:bg-slate-100 border border-slate-200 text-slate-500"
-                        title="Duplicate"
-                      >
-                        <Icons.Copy className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteQuestion(idx);
-                        }}
-                        className="p-0.5 rounded bg-rose-50 hover:bg-rose-100 border border-rose-100 text-rose-600"
-                        title="Delete"
-                      >
-                        <Icons.Trash className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                  <span className="text-xs font-black line-clamp-2 leading-relaxed">
-                    {q.question || 'Untitled Question'}
+          {/* Scrollable Questions list */}
+          <div className="space-y-2 flex-1 overflow-y-auto pr-1 scrollbar-thin">
+            {questions.map((q, idx) => (
+              <div
+                key={idx}
+                onClick={() => setActiveQuestionIdx(idx)}
+                className={cn(
+                  "p-3 rounded-xl border transition-all duration-200 cursor-pointer flex flex-col gap-1.5 relative group",
+                  activeQuestionIdx === idx
+                    ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-bold"
+                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-extrabold uppercase text-slate-400">
+                    Q{idx + 1}
                   </span>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={handleAddQuestion}
-              className="w-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-black py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all text-slate-700 flex-shrink-0"
-            >
-              <Icons.Plus className="w-4 h-4 font-bold" />
-              Add Question
-            </button>
-          </div>
-
-          {/* PDF Widget Block */}
-          <div className="border-t border-slate-100 pt-4 flex-shrink-0 space-y-3 font-semibold">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-450 block font-heading">
-              Syllabus Reference PDF
-            </span>
-
-            {pdfInfo ? (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5 text-[11px]">
-                <div className="flex items-start gap-2.5">
-                  <Icons.File className="w-4.5 h-4.5 text-cyan-600 flex-shrink-0 mt-0.5" />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-extrabold text-slate-800 truncate" title={pdfInfo.filename}>
-                      {pdfInfo.filename}
-                    </p>
-                    <p className="text-slate-500 text-[10px] mt-0.5 font-bold">
-                      {pdfInfo.filesize} • Updated {pdfInfo.lastModified}
-                    </p>
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDuplicateQuestion(idx);
+                      }}
+                      className="p-0.5 rounded bg-white hover:bg-slate-100 border border-slate-200 text-slate-500"
+                      title="Duplicate"
+                    >
+                      <Icons.Copy className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteQuestion(idx);
+                      }}
+                      className="p-0.5 rounded bg-rose-50 hover:bg-rose-100 border border-rose-100 text-rose-600"
+                      title="Delete"
+                    >
+                      <Icons.Trash className="w-3 h-3" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setPdfInfo(null)}
-                    className="text-slate-400 hover:text-rose-600"
-                  >
-                    <Icons.X className="w-4 h-4" />
-                  </button>
                 </div>
-                
-                <div className="bg-amber-50 border border-amber-250 text-amber-700 rounded-lg p-2 leading-normal">
-                  PDF extraction service will be connected during backend integration.
-                </div>
+                <span className="text-xs font-black line-clamp-2 leading-relaxed">
+                  {q.question || 'Untitled Question'}
+                </span>
               </div>
-            ) : (
-              <label className="border border-dashed border-slate-200 hover:border-indigo-500 rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer bg-slate-50/40 hover:bg-indigo-50/20 transition-all text-center">
-                <Icons.UploadCloud className="w-6 h-6 text-slate-400" />
-                <span className="text-[10px] font-black text-slate-600">Reference Question PDF</span>
-                <span className="text-[9px] text-slate-450">File selection only</span>
-                <input
-                  type="file"
-                  accept=".pdf"
-                  onChange={handlePDFSelect}
-                  className="hidden"
-                />
-              </label>
-            )}
+            ))}
           </div>
 
+          <button
+            onClick={handleAddQuestion}
+            className="w-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-black py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all text-slate-700 flex-shrink-0"
+          >
+            <Icons.Plus className="w-4 h-4 font-bold" />
+            Add Question
+          </button>
         </div>
 
         {/* Pane 2: QUESTION EDITOR (40% width) */}
@@ -530,103 +385,7 @@ export default function QuizEditorPage() {
             )}
           </div>
         </div>
-
       </div>
-
-      {/* BULK IMPORT MODAL */}
-      <AnimatePresence>
-        {isImportModalOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="bg-white border border-slate-205 rounded-3xl p-6 w-full max-w-xl shadow-2xl relative flex flex-col max-h-[85vh] text-slate-800">
-              <button
-                onClick={() => setIsImportModalOpen(false)}
-                className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-450 hover:text-slate-700 transition-colors"
-              >
-                <Icons.X className="w-4 h-4" />
-              </button>
-
-              <h3 className="text-base font-black text-slate-900 font-heading tracking-tight mb-1">
-                Bulk Question Importer
-              </h3>
-              <p className="text-[11px] text-slate-500 mb-4 font-semibold">
-                Paste JSON or CSV formatted blocks to append multiple questions to the current module pool.
-              </p>
-
-              <div className="flex items-center gap-3 mb-4 font-black">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImportFormat('JSON');
-                    setImportText('[\n  {\n    "question": "Example AWS IAM scenario?",\n    "options": ["A", "B", "C", "D"],\n    "answerIndex": 0,\n    "explanation": "Example explanation"\n  }\n]');
-                  }}
-                  className={cn(
-                    "px-4 py-2 rounded-xl text-[11px] font-black border transition-all",
-                    importFormat === 'JSON'
-                      ? "bg-indigo-50 border-indigo-300 text-indigo-700"
-                      : "bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800"
-                  )}
-                >
-                  JSON Format
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImportFormat('CSV');
-                    setImportText('"Example AWS EC2 scenario?","Choice A","Choice B","Choice C","Choice D",1,"Explanation message"\n"Another question scenario?","Choice A","Choice B","Choice C","Choice D",2,"Explanation message"');
-                  }}
-                  className={cn(
-                    "px-4 py-2 rounded-xl text-[11px] font-black border transition-all",
-                    importFormat === 'CSV'
-                      ? "bg-indigo-50 border-indigo-300 text-indigo-700"
-                      : "bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800"
-                  )}
-                >
-                  CSV Format
-                </button>
-              </div>
-
-              <div className="flex-1 min-h-[200px] overflow-hidden flex flex-col gap-2 font-semibold">
-                <textarea
-                  rows={8}
-                  value={importText}
-                  onChange={(e) => setImportText(e.target.value)}
-                  placeholder={
-                    importFormat === 'JSON'
-                      ? '[\n  {\n    "question": "What service is...",\n    "options": ["S3", "EC2", "RDS", "VPC"],\n    "answerIndex": 0,\n    "explanation": "S3 stores files..."\n  }\n]'
-                      : '"S3 is a...","Object storage","Block storage","Database","Cache",0,"S3 provides object storage"'
-                  }
-                  className="w-full flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 text-xs font-mono focus:bg-white focus:outline-none focus:border-indigo-500 transition-colors resize-none leading-relaxed overflow-y-auto"
-                />
-
-                {importError && (
-                  <div className="bg-rose-50 border border-rose-200 text-rose-600 text-[11px] p-3 rounded-xl flex items-center gap-2">
-                    <Icons.AlertCircle className="w-4 h-4 flex-shrink-0" />
-                    <span className="truncate">{importError}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100 mt-4 flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setIsImportModalOpen(false)}
-                  className="bg-transparent hover:bg-slate-100 border border-slate-200 text-slate-500 font-bold px-4 py-2.5 rounded-xl text-xs transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleImport}
-                  className="bg-[#00cba9] hover:bg-[#00bda0] text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs shadow-lg transition-all"
-                >
-                  Import Questions
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </AnimatePresence>
-
     </div>
   );
 }
