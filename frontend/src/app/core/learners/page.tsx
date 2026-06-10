@@ -22,7 +22,7 @@ interface StudentRecord {
   avatar: string;
   xp: number;
   streak: number;
-  badges: { name: string; icon: string; color: string }[];
+  level: 'Beginner' | 'Intermediate' | 'Advanced';
   completedModules: { id: string; name: string; date: string }[];
   quizHistory: QuizAttempt[];
 }
@@ -35,11 +35,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     avatar: 'SC',
     xp: 2450,
     streak: 15,
-    badges: [
-      { name: 'Cloud Cadet', icon: 'Cloud', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
-      { name: 'IAM Guardian', icon: 'Shield', color: 'bg-cyan-50 text-cyan-600 border-cyan-100' },
-      { name: 'Compute Guru', icon: 'Cpu', color: 'bg-indigo-50 text-indigo-600 border-indigo-100' }
-    ],
+    level: 'Beginner',
     completedModules: [
       { id: 'fundamentals', name: 'AWS Fundamentals', date: '2026-06-01' },
       { id: 'ec2', name: 'Amazon EC2', date: '2026-06-03' },
@@ -60,10 +56,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     avatar: 'MW',
     xp: 1800,
     streak: 8,
-    badges: [
-      { name: 'Cloud Cadet', icon: 'Cloud', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
-      { name: 'S3 Voyager', icon: 'Database', color: 'bg-amber-50 text-amber-600 border-amber-100' }
-    ],
+    level: 'Intermediate',
     completedModules: [
       { id: 'fundamentals', name: 'AWS Fundamentals', date: '2026-06-02' },
       { id: 'ec2', name: 'Amazon EC2', date: '2026-06-05' },
@@ -82,11 +75,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     avatar: 'JC',
     xp: 2900,
     streak: 22,
-    badges: [
-      { name: 'Cloud Cadet', icon: 'Cloud', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
-      { name: 'VPC Master', icon: 'Network', color: 'bg-rose-50 text-rose-600 border-rose-100' },
-      { name: 'RDS Expert', icon: 'Server', color: 'bg-violet-50 text-violet-605 border-violet-100' }
-    ],
+    level: 'Advanced',
     completedModules: [
       { id: 'fundamentals', name: 'AWS Fundamentals', date: '2026-05-28' },
       { id: 'ec2', name: 'Amazon EC2', date: '2026-05-30' },
@@ -111,9 +100,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     avatar: 'KR',
     xp: 950,
     streak: 4,
-    badges: [
-      { name: 'Cloud Cadet', icon: 'Cloud', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' }
-    ],
+    level: 'Beginner',
     completedModules: [
       { id: 'fundamentals', name: 'AWS Fundamentals', date: '2026-06-06' },
       { id: 'ec2', name: 'Amazon EC2', date: '2026-06-09' }
@@ -130,7 +117,7 @@ const INITIAL_STUDENTS: StudentRecord[] = [
     avatar: 'PS',
     xp: 450,
     streak: 0,
-    badges: [],
+    level: 'Beginner',
     completedModules: [
       { id: 'fundamentals', name: 'AWS Fundamentals', date: '2026-06-08' }
     ],
@@ -141,16 +128,36 @@ const INITIAL_STUDENTS: StudentRecord[] = [
 ];
 
 export default function LearnersDirectoryPage() {
+  const { modules } = useRoadmapStore();
   const [students, setStudents] = useState<StudentRecord[]>(INITIAL_STUDENTS);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
-  const filteredStudents = students.filter(
-    (student) =>
+  // Filters State
+  const [levelFilter, setLevelFilter] = useState<'all' | 'Beginner' | 'Intermediate' | 'Advanced'>('all');
+  const [moduleFilterType, setModuleFilterType] = useState<'all' | 'above' | 'below'>('all');
+  const [moduleFilterValue, setModuleFilterValue] = useState<number>(3);
+
+  const filteredStudents = students.filter((student) => {
+    // Search Term match
+    const matchesSearch = 
       student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.badges.some((b) => b.name.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+      student.email.toLowerCase().includes(searchTerm.toLowerCase());
+      
+    // Level match
+    const matchesLevel = levelFilter === 'all' || student.level === levelFilter;
+    
+    // Modules Completed count match
+    const completedCount = student.completedModules.length;
+    let matchesModules = true;
+    if (moduleFilterType === 'above') {
+      matchesModules = completedCount >= moduleFilterValue;
+    } else if (moduleFilterType === 'below') {
+      matchesModules = completedCount <= moduleFilterValue;
+    }
+    
+    return matchesSearch && matchesLevel && matchesModules;
+  });
 
   const selectedStudent = students.find((s) => s.id === selectedStudentId) || null;
 
@@ -164,7 +171,7 @@ export default function LearnersDirectoryPage() {
             Learners Directory
           </h2>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            Monitor cloud explorer scores, achievements, streaks, and individual module quiz attempts.
+            Monitor cloud explorer scores, achievements, and individual module quiz attempts.
           </p>
         </div>
 
@@ -172,7 +179,7 @@ export default function LearnersDirectoryPage() {
         <div className="relative w-full md:w-72">
           <input
             type="text"
-            placeholder="Search student or badge..."
+            placeholder="Search student name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-850 placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-colors shadow-sm"
@@ -181,20 +188,99 @@ export default function LearnersDirectoryPage() {
         </div>
       </div>
 
+      {/* Curriculum Level & Modules Completion Filter Panel */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          
+          {/* Level Filter Tabs (with counts) */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block font-heading mr-1">
+              Level Filter:
+            </span>
+            {[
+              { id: 'all', label: 'All', count: students.length, color: 'border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100' },
+              { id: 'Beginner', label: 'Beginners', count: students.filter(s => s.level === 'Beginner').length, color: 'border-emerald-100 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-50' },
+              { id: 'Intermediate', label: 'Intermediate', count: students.filter(s => s.level === 'Intermediate').length, color: 'border-cyan-100 text-cyan-700 bg-cyan-50/50 hover:bg-cyan-50' },
+              { id: 'Advanced', label: 'Advanced', count: students.filter(s => s.level === 'Advanced').length, color: 'border-indigo-100 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50' },
+            ].map((tab) => {
+              const active = levelFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setLevelFilter(tab.id as any)}
+                  className={cn(
+                    "px-3 py-1.5 border rounded-xl text-xs font-black transition-all flex items-center gap-2 font-heading shadow-xs",
+                    active
+                      ? tab.id === 'all'
+                        ? "bg-slate-900 border-slate-900 text-white"
+                        : tab.id === 'Beginner'
+                          ? "bg-emerald-600 border-emerald-600 text-white"
+                          : tab.id === 'Intermediate'
+                            ? "bg-cyan-600 border-cyan-600 text-white"
+                            : "bg-indigo-600 border-indigo-600 text-white"
+                      : tab.color
+                  )}
+                >
+                  <span>{tab.label}</span>
+                  <span className={cn(
+                    "px-1.5 py-0.5 rounded-md text-[9px] font-bold border",
+                    active
+                      ? "bg-white/20 border-white/10 text-white"
+                      : "bg-white border-slate-200 text-slate-500"
+                  )}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Module Completion Count Filter */}
+          <div className="flex items-center gap-3 text-xs font-semibold">
+            <span className="text-slate-450 font-extrabold text-[10px] uppercase tracking-wider block font-heading">
+              Module Completion:
+            </span>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <select
+                  value={moduleFilterType}
+                  onChange={(e) => setModuleFilterType(e.target.value as 'all' | 'above' | 'below')}
+                  className="bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-xs text-slate-800 font-extrabold focus:bg-white focus:outline-none cursor-pointer appearance-none"
+                >
+                  <option value="all">Any count completed</option>
+                  <option value="above">Completed modules &gt;=</option>
+                  <option value="below">Completed modules &lt;=</option>
+                </select>
+                <Icons.ChevronDown className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+              </div>
+              
+              {moduleFilterType !== 'all' && (
+                <input
+                  type="number"
+                  min={0}
+                  max={20}
+                  value={moduleFilterValue}
+                  onChange={(e) => setModuleFilterValue(Number(e.target.value))}
+                  className="w-14 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-800 text-center font-extrabold focus:bg-white focus:outline-none"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Class Statistics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {[
           { label: 'Total Explorers', value: students.length, icon: Icons.Users, color: 'text-indigo-650 bg-white border-slate-200 shadow-sm' },
-          { label: 'Average Class XP', value: Math.round(students.reduce((acc, curr) => acc + curr.xp, 0) / students.length), icon: Icons.Zap, color: 'text-amber-600 bg-white border-slate-200 shadow-sm' },
-          { label: 'Modules Completed', value: students.reduce((acc, curr) => acc + curr.completedModules.length, 0), icon: Icons.Layers, color: 'text-emerald-600 bg-white border-slate-200 shadow-sm' },
-          { label: 'Active Streaks', value: students.filter((s) => s.streak > 0).length, icon: Icons.Calendar, color: 'text-rose-600 bg-white border-slate-200 shadow-sm' }
+          { label: 'Total Modules Uploaded', value: modules.length, icon: Icons.Layers, color: 'text-emerald-600 bg-white border-slate-200 shadow-sm' }
         ].map((stat, idx) => (
           <div key={idx} className={cn("border rounded-2xl p-4 flex items-center justify-between", stat.color)}>
             <div className="space-y-1">
-              <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider font-heading">
+              <span className="text-[10px] font-black uppercase text-slate-450 block tracking-wider font-heading">
                 {stat.label}
               </span>
-              <span className="text-xl font-black text-slate-800 block">
+              <span className="text-xl font-black text-slate-850 block">
                 {stat.value}
               </span>
             </div>
@@ -213,7 +299,7 @@ export default function LearnersDirectoryPage() {
                 <th className="py-4 px-6 text-center">XP Reward</th>
                 <th className="py-4 px-6 text-center">Active Streak</th>
                 <th className="py-4 px-6">Completed Modules</th>
-                <th className="py-4 px-6">Accrued Badges</th>
+                <th className="py-4 px-6 text-center">Curriculum Level</th>
                 <th className="py-4 px-6 text-right">Action</th>
               </tr>
             </thead>
@@ -261,24 +347,18 @@ export default function LearnersDirectoryPage() {
                     </span>
                   </td>
 
-                  {/* Badges list */}
-                  <td className="py-4 px-6">
-                    <div className="flex flex-wrap gap-1.5 max-w-[280px]">
-                      {student.badges.map((badge, idx) => (
-                        <span
-                          key={idx}
-                          className={cn(
-                            "text-[9px] font-black border px-2 py-0.5 rounded-md tracking-wider uppercase whitespace-nowrap",
-                            badge.color
-                          )}
-                        >
-                          {badge.name}
-                        </span>
-                      ))}
-                      {student.badges.length === 0 && (
-                        <span className="text-[10px] text-slate-400 italic">No badges earned</span>
-                      )}
-                    </div>
+                  {/* Curriculum Level */}
+                  <td className="py-4 px-6 text-center">
+                    <span className={cn(
+                      "px-2.5 py-1 rounded-xl text-[9px] font-black border uppercase tracking-wider whitespace-nowrap",
+                      student.level === 'Beginner'
+                        ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                        : student.level === 'Intermediate'
+                          ? "bg-cyan-50 text-cyan-600 border-cyan-100"
+                          : "bg-indigo-50 text-indigo-650 border-indigo-100"
+                    )}>
+                      {student.level}
+                    </span>
                   </td>
 
                   {/* Quick Action Button */}
@@ -336,9 +416,21 @@ export default function LearnersDirectoryPage() {
                       <h3 className="text-sm font-black text-slate-800 font-heading">
                         {selectedStudent.name}
                       </h3>
-                      <p className="text-[10px] text-slate-400 font-bold">
-                        {selectedStudent.email}
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-[10px] text-slate-400 font-bold">
+                          {selectedStudent.email}
+                        </p>
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded-md text-[8px] font-black border uppercase tracking-wider whitespace-nowrap",
+                          selectedStudent.level === 'Beginner'
+                            ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                            : selectedStudent.level === 'Intermediate'
+                              ? "bg-cyan-50 text-cyan-600 border-cyan-100"
+                              : "bg-indigo-50 text-indigo-650 border-indigo-100"
+                        )}>
+                          {selectedStudent.level}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
