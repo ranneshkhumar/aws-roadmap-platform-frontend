@@ -4,19 +4,22 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import * as Icons from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/providers/AuthProvider';
+import { getAuthSession } from '@/lib/authHelper';
+import { ApiError } from '@/services/apiClient';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   // If already authenticated, redirect immediately
   useEffect(() => {
-    const isAuth = localStorage.getItem('isAuthenticated') === 'true';
-    const role = localStorage.getItem('role');
-    if (isAuth && role) {
-      if (role === 'core') {
+    const session = getAuthSession();
+    if (session.isAuthenticated && session.role) {
+      if (session.role === 'core') {
         router.replace('/core/roadmaps');
       } else {
         router.replace('/roadmap');
@@ -24,33 +27,25 @@ export default function LoginPage() {
     }
   }, [router]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    const normEmail = email.trim().toLowerCase();
+    const normEmail = email.trim();
     const pwd = password.trim();
 
-    let targetRole = '';
-
-    if (normEmail === 'core@cloudclub.com' && pwd === 'core123') {
-      targetRole = 'core';
-    } else if (normEmail === 'crew@cloudclub.com' && pwd === 'crew123') {
-      targetRole = 'crew';
-    } else if (normEmail === 'user@cloudclub.com' && pwd === 'user123') {
-      targetRole = 'enthusiast';
-    } else {
-      setError('Invalid simulated credentials. Please use one of the demo credentials below.');
-      return;
-    }
-
-    localStorage.setItem('isAuthenticated', 'true');
-    localStorage.setItem('role', targetRole);
-
-    if (targetRole === 'core') {
-      router.push('/core/roadmaps');
-    } else {
-      router.push('/roadmap');
+    try {
+      await login({ email: normEmail, password: pwd });
+      
+      const session = getAuthSession();
+      if (session.role === 'core') {
+        router.push('/core/roadmaps');
+      } else {
+        router.push('/roadmap');
+      }
+    } catch (err) {
+      const apiError = err as ApiError;
+      setError(apiError.message || 'Invalid simulated credentials. Please use one of the demo credentials below.');
     }
   };
 

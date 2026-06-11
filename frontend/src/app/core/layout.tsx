@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getAuthSession } from '@/lib/authHelper';
+import { authService } from '@/services/auth.service';
 
 interface CoreLayoutProps {
   children: React.ReactNode;
@@ -16,20 +18,19 @@ export default function CoreLayout({ children }: CoreLayoutProps) {
   const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    const isAuth = localStorage.getItem('isAuthenticated') === 'true';
-    const role = localStorage.getItem('role');
+    const session = getAuthSession();
 
-    if (!isAuth || !role) {
+    if (!session.isAuthenticated || !session.role) {
       router.replace('/login');
       return;
     }
 
-    setUserRole(role);
+    setUserRole(session.role);
 
     // Core Protection rules
-    if (role === 'core') {
+    if (session.role === 'core') {
       setLoading(false);
-    } else if (role === 'crew') {
+    } else if (session.role === 'crew') {
       // Crew can only access Learners directory (/core/learners)
       if (pathname.startsWith('/core/learners')) {
         setLoading(false);
@@ -43,7 +44,7 @@ export default function CoreLayout({ children }: CoreLayoutProps) {
   }, [router, pathname]);
 
   const handleLogout = () => {
-    localStorage.clear();
+    authService.logout();
     router.push('/login');
   };
 

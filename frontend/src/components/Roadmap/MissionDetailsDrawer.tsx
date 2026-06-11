@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as Icons from 'lucide-react';
 import { ModuleData } from '@/constants/roadmapData';
-import { useRoadmapStore } from '@/store/roadmapStore';
+import { modulesService, ModuleDetail } from '@/services/api';
 import { cn } from '@/lib/utils';
+
+const moduleDetailCache: Record<string, ModuleDetail> = {};
 
 interface MissionDetailsDrawerProps {
   module: ModuleData | null;
@@ -22,7 +24,41 @@ export const MissionDetailsDrawer: React.FC<MissionDetailsDrawerProps> = ({
   status
 }) => {
   const router = useRouter();
-  const { quizReviews } = useRoadmapStore();
+  const [detail, setDetail] = React.useState<ModuleDetail | null>(null);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isOpen || !module) {
+      setDetail(null);
+      return;
+    }
+
+    const cached = moduleDetailCache[module.id];
+    if (cached) {
+      setDetail(cached);
+      return;
+    }
+
+    let active = true;
+    const fetchDetail = async () => {
+      try {
+        setLoading(true);
+        const data = await modulesService.getModuleBySlug(module.id);
+        if (!active) return;
+        moduleDetailCache[module.id] = data;
+        setDetail(data);
+      } catch (err) {
+        console.error('Failed to load module details:', err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    fetchDetail();
+    return () => {
+      active = false;
+    };
+  }, [isOpen, module]);
 
   if (!module) return null;
 
@@ -37,7 +73,7 @@ export const MissionDetailsDrawer: React.FC<MissionDetailsDrawerProps> = ({
     locked: 'Locked'
   }[status];
 
-  const hasQuizReview = !!quizReviews[module.id];
+  const hasQuizReview = status === 'completed';
 
   return (
     <AnimatePresence>
@@ -113,7 +149,7 @@ export const MissionDetailsDrawer: React.FC<MissionDetailsDrawerProps> = ({
                     <span className="text-xs text-slate-500">Learning Pages</span>
                     <span className="text-xs font-bold text-slate-800 flex items-center gap-1 font-outfit">
                       <Icons.BookOpen className="w-3.5 h-3.5 text-cyan-600" />
-                      {module.learningPagesCount || module.learningContent.length} Pages
+                      {loading ? '...' : (detail?.slides?.length ?? module.learningPagesCount ?? 0)} Pages
                     </span>
                   </div>
 
@@ -122,7 +158,7 @@ export const MissionDetailsDrawer: React.FC<MissionDetailsDrawerProps> = ({
                     <span className="text-xs text-slate-500">Quiz Questions</span>
                     <span className="text-xs font-bold text-slate-800 flex items-center gap-1 font-outfit">
                       <Icons.ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                      {module.quizQuestionsCount} Questions
+                      {loading ? '...' : (detail?.questions?.length ?? module.quizQuestionsCount ?? 0)} Questions
                     </span>
                   </div>
 

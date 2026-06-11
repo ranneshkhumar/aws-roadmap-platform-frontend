@@ -1,0 +1,164 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CORE
+  CREW
+  ENTHUSIAST
+}
+
+enum ProgressStatus {
+  LOCKED
+  UNLOCKED
+  COMPLETED
+}
+
+model User {
+  id           String @id @default(cuid())
+  name         String
+  email        String @unique
+  passwordHash String
+  role         Role   @default(ENTHUSIAST)
+
+  xp     Int @default(0)
+  streak Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  progress UserModuleProgress[]
+  attempts QuizAttempt[]
+}
+
+model Module {
+  id   String @id @default(cuid())
+  slug String @unique
+
+  name        String
+  description String
+
+  tier String
+
+  xpPoints         Int
+  estimatedMinutes Int
+
+  orderIndex Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  slides    LearningSlide[]
+  questions QuizQuestion[]
+  progress  UserModuleProgress[]
+  attempts  QuizAttempt[]
+}
+
+model LearningSlide {
+  id String @id @default(cuid())
+
+  moduleId String
+  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  title String
+
+  layoutType String
+
+  imageUrl String?
+
+  bullets String[]
+
+  orderIndex Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model QuizQuestion {
+  id String @id @default(cuid())
+
+  moduleId String
+  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  question String
+
+  optionA String
+  optionB String
+  optionC String
+  optionD String
+
+  correctAnswer String
+
+  explanation String
+
+  orderIndex Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  answers QuizAttemptAnswer[]
+}
+
+model UserModuleProgress {
+  id String @id @default(cuid())
+
+  userId   String
+  moduleId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  status ProgressStatus @default(LOCKED)
+
+  score Int?
+
+  xpEarned Int @default(0)
+
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, moduleId])
+}
+
+model QuizAttempt {
+  id String @id @default(cuid())
+
+  userId   String
+  moduleId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  totalQuestions Int
+  correctAnswers Int
+
+  percentage Float
+
+  xpEarned Int
+
+  attemptedAt DateTime @default(now())
+
+  answers QuizAttemptAnswer[]
+}
+
+model QuizAttemptAnswer {
+  id String @id @default(cuid())
+
+  attemptId  String
+  questionId String
+
+  attempt  QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  selectedAnswer String
+
+  isCorrect Boolean
+}

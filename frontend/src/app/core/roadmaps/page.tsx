@@ -3,7 +3,52 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRoadmapStore } from '@/store/roadmapStore';
+import { modulesService } from '@/services/api';
+import { ApiError } from '@/services/apiClient';
+import { getAuthSession } from '@/lib/authHelper';
+import { authService } from '@/services/auth.service';
+
+const levelToTier = (level: 'Beginner' | 'Intermediate' | 'Advanced'): string => {
+  const map = {
+    Beginner: 'Fundamentals',
+    Intermediate: 'Associate',
+    Advanced: 'Professional',
+  };
+  return map[level];
+};
+
+const tierToLevel = (tier: string): 'Beginner' | 'Intermediate' | 'Advanced' => {
+  const map: Record<string, 'Beginner' | 'Intermediate' | 'Advanced'> = {
+    Fundamentals: 'Beginner',
+    Associate: 'Intermediate',
+    Professional: 'Advanced',
+  };
+  return map[tier] || 'Beginner';
+};
+
+const getIconForSlug = (slug: string): string => {
+  const map: Record<string, string> = {
+    fundamentals: 'Globe',
+    ec2: 'Cpu',
+    s3: 'Database',
+    iam: 'Shield',
+    vpc: 'Network',
+    rds: 'Server',
+    route53: 'Compass',
+    elasticloadbalancing: 'Shuffle',
+    autoscaling: 'ArrowUpCircle',
+    lambda: 'Zap',
+    dynamodb: 'HardDrive',
+    cloudwatch: 'Eye',
+    sns_sqs: 'Mail',
+    cloudtrail: 'FileText',
+    cloudfront: 'Tv',
+    ecs_eks: 'Box',
+    iam_advanced: 'Lock',
+    transit_gateway: 'GitMerge',
+  };
+  return map[slug] || 'Boxes';
+};
 import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -75,15 +120,10 @@ const calculateCompactRoadmapGeometry = (modulesList: any[]) => {
 
 export default function RoadmapsBuilderPage() {
   const router = useRouter();
-  const {
-    modules,
-    addModule,
-    updateModule,
-    deleteModule,
-    duplicateModule,
-    reorderModule
-  } = useRoadmapStore();
-
+  
+  const [modules, setModules] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
@@ -98,12 +138,282 @@ export default function RoadmapsBuilderPage() {
   const centerRef = useRef<HTMLDivElement>(null);
   const [centerSize, setCenterSize] = useState({ w: 700, h: 500 });
 
-  // Auto-select first module
-  useEffect(() => {
-    if (modules.length > 0 && !selectedModuleId) {
-      setSelectedModuleId(modules[0].id);
+  // Settings edit local states
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editPoints, setEditPoints] = useState(50);
+  const [editEstimatedTime, setEditEstimatedTime] = useState('');
+  const [editLevel, setEditLevel] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Beginner');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+
+  // References for debounced save and navigation flush
+  const isDirtyRef = useRef(false);
+  const editStateRef = useRef({ name: '', description: '', points: 50, estimatedTime: '', level: 'Beginner' as const });
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const currentModuleDbIdRef = useRef<string | null>(null);
+  
+  // Request versioning reference to ignore stale responses
+  const saveVersionRef = useRef(0);
+
+  const handleApiError = (err: any) => {
+    const apiError = err as ApiError;
+    if (apiError.status === 401) {
+      authService.logout();
+      router.push('/login');
+    } else if (apiError.status === 403) {
+      alert('Permission Denied: You do not have the required core privileges to make curriculum changes.');
+    } else {
+      alert(apiError.message || 'An unexpected error occurred.');
     }
-  }, [modules, selectedModuleId]);
+  };
+
+  const loadModules = async () => {
+    try {
+      setLoading(true);
+      const dbModules = await modulesService.getModules();
+
+      // Runtime Contract Guard
+      const requiredFields = [
+        'id',
+        'slug',
+        'name',
+        'description',
+        'tier',
+        'xpPoints',
+        'estimatedMinutes',
+        'orderIndex'
+      ];
+      
+      for (const mod of dbModules) {
+        const missing = [];
+        for (const field of requiredFields) {
+          if (mod[field as keyof typeof mod] === undefined || mod[field as keyof typeof mod] === null) {
+            missing.push(field);
+          }
+        }
+        if (missing.length > 0) {
+          throw new Error(`API Contract Mismatch: Module [slug: ${mod.slug || 'unknown'}] is missing required fields: ${missing.join(', ')}`);
+        }
+      }
+
+      // Map to UI modules
+      const mapped = dbModules.map((m) => ({
+        id: m.slug, // UI id uses slug
+        name: m.name,
+        points: m.xpPoints,
+        level: tierToLevel(m.tier),
+        description: m.description,
+        iconName: getIconForSlug(m.slug),
+        estimatedTime: `${m.estimatedMinutes} Minutes`,
+        learningPagesCount: 4, 
+        quizQuestionsCount: 3, 
+        tasks: [],
+        quiz: {
+          question: '',
+          options: [],
+          answerIndex: 0,
+          explanation: ''
+        },
+        learningContent: [],
+        dbId: m.id, // Primary Key CUID
+      }));
+
+      // Sort by orderIndex from database
+      mapped.sort((a, b) => {
+        const modA = dbModules.find((m) => m.slug === a.id);
+        const modB = dbModules.find((m) => m.slug === b.id);
+        return (modA?.orderIndex ?? 0) - (modB?.orderIndex ?? 0);
+      });
+
+      setModules(mapped);
+      setError(null);
+
+      // Auto-select first module if none selected or the selected module no longer exists
+      if (mapped.length > 0) {
+        if (!selectedModuleId || !mapped.some(m => m.id === selectedModuleId)) {
+          setSelectedModuleId(mapped[0].id);
+        }
+      } else {
+        setSelectedModuleId(null);
+      }
+    } catch (err: any) {
+      console.error('Failed to load modules:', err);
+      setError(err?.message || 'An error occurred loading modules');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadModules();
+  }, []);
+
+  const flushChanges = async (): Promise<void> => {
+    if (!isDirtyRef.current || !currentModuleDbIdRef.current) return Promise.resolve();
+
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+      debounceTimeoutRef.current = null;
+    }
+
+    const version = ++saveVersionRef.current;
+    isDirtyRef.current = false;
+    setSaveStatus('saving');
+
+    try {
+      const { name: currentName, description: currentDesc, points: currentPoints, estimatedTime: currentTime, level: currentLvl } = editStateRef.current;
+      const dto = {
+        name: currentName,
+        description: currentDesc,
+        xpPoints: currentPoints,
+        estimatedMinutes: parseInt(currentTime) || 20,
+        tier: levelToTier(currentLvl),
+      };
+
+      await modulesService.updateModule(currentModuleDbIdRef.current, dto);
+      
+      if (version === saveVersionRef.current) {
+        setSaveStatus('saved');
+      }
+
+      // Re-fetch modules from server data to update canvas preview
+      const dbModules = await modulesService.getModules();
+      const mapped = dbModules.map((m) => ({
+        id: m.slug,
+        name: m.name,
+        points: m.xpPoints,
+        level: tierToLevel(m.tier),
+        description: m.description,
+        iconName: getIconForSlug(m.slug),
+        estimatedTime: `${m.estimatedMinutes} Minutes`,
+        learningPagesCount: 4,
+        quizQuestionsCount: 3,
+        tasks: [],
+        quiz: {
+          question: '',
+          options: [],
+          answerIndex: 0,
+          explanation: ''
+        },
+        learningContent: [],
+        dbId: m.id,
+      }));
+      mapped.sort((a, b) => {
+        const modA = dbModules.find((m) => m.slug === a.id);
+        const modB = dbModules.find((m) => m.slug === b.id);
+        return (modA?.orderIndex ?? 0) - (modB?.orderIndex ?? 0);
+      });
+      setModules(mapped);
+    } catch (err: any) {
+      console.error('Failed to save settings:', err);
+      if (version === saveVersionRef.current) {
+        setSaveStatus('failed');
+      }
+      isDirtyRef.current = true;
+      handleApiError(err);
+      throw err;
+    }
+  };
+
+  const selectModule = async (moduleId: string) => {
+    if (moduleId === selectedModuleId) return;
+    if (isDirtyRef.current) {
+      await flushChanges().catch(console.error);
+    }
+    setSelectedModuleId(moduleId);
+  };
+
+  const handleFieldChange = (field: string, value: any) => {
+    if (!selectedModule) return;
+
+    if (field === 'name') setEditName(value);
+    if (field === 'description') setEditDescription(value);
+    if (field === 'points') setEditPoints(value);
+    if (field === 'estimatedTime') setEditEstimatedTime(value);
+    if (field === 'level') setEditLevel(value);
+
+    editStateRef.current = {
+      ...editStateRef.current,
+      [field]: value,
+    };
+    isDirtyRef.current = true;
+    setSaveStatus('idle');
+
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    debounceTimeoutRef.current = setTimeout(() => {
+      flushChanges().catch(console.error);
+    }, 1000);
+  };
+
+  const selectedModule = modules.find((m) => m.id === selectedModuleId) || null;
+
+  // Sync edit states on module selection change (Initialization Guard)
+  useEffect(() => {
+    if (selectedModule) {
+      currentModuleDbIdRef.current = selectedModule.dbId;
+
+      setEditName(selectedModule.name);
+      setEditDescription(selectedModule.description);
+      setEditPoints(selectedModule.points);
+      setEditEstimatedTime(selectedModule.estimatedTime);
+      setEditLevel(selectedModule.level);
+
+      editStateRef.current = {
+        name: selectedModule.name,
+        description: selectedModule.description,
+        points: selectedModule.points,
+        estimatedTime: selectedModule.estimatedTime,
+        level: selectedModule.level,
+      };
+
+      isDirtyRef.current = false;
+      setSaveStatus('idle');
+
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+        debounceTimeoutRef.current = null;
+      }
+    } else {
+      currentModuleDbIdRef.current = null;
+    }
+  }, [selectedModuleId]);
+
+  // beforeunload handler to prevent losing unsaved data
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirtyRef.current) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes in module settings. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
+  // Flush on unmount
+  useEffect(() => {
+    return () => {
+      if (isDirtyRef.current && currentModuleDbIdRef.current) {
+        const { name: currentName, description: currentDesc, points: currentPoints, estimatedTime: currentTime, level: currentLvl } = editStateRef.current;
+        const dto = {
+          name: currentName,
+          description: currentDesc,
+          xpPoints: currentPoints,
+          estimatedMinutes: parseInt(currentTime) || 20,
+          tier: levelToTier(currentLvl),
+        };
+        modulesService.updateModule(currentModuleDbIdRef.current, dto).catch(console.error);
+      }
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Measure preview canvas container size
   useEffect(() => {
@@ -122,8 +432,6 @@ export default function RoadmapsBuilderPage() {
     return () => observer.disconnect();
   }, []);
 
-  const selectedModule = modules.find((m) => m.id === selectedModuleId) || null;
-
   const beginnerList = modules.filter((m) => m.level === 'Beginner');
   const intermediateList = modules.filter((m) => m.level === 'Intermediate');
   const advancedList = modules.filter((m) => m.level === 'Advanced');
@@ -139,7 +447,6 @@ export default function RoadmapsBuilderPage() {
   } = calculateCompactRoadmapGeometry(modules);
 
   const canvasHeight = totalHeight + 100;
-  // Fit width to the preview container
   const scaleX = centerSize.w / CANVAS_WIDTH;
   const fitScale = Math.min(scaleX, 0.95);
 
@@ -157,40 +464,120 @@ export default function RoadmapsBuilderPage() {
     return { id: node.id, x: coord.x, y: coord.y, status: 'completed' as const };
   });
 
-  const handleCreateModule = (e: React.FormEvent) => {
+  const handleCreateModule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    addModule(name, description, level, estimatedTime, points);
-    
-    const baseId = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-    let finalId = baseId || 'module';
-    let counter = 1;
-    while (modules.some((m) => m.id === finalId)) {
-      finalId = `${baseId}_${counter}`;
-      counter++;
+
+    try {
+      const minutes = parseInt(estimatedTime) || 20;
+      const tier = levelToTier(level);
+      const dto = {
+        name,
+        description,
+        tier,
+        xpPoints: points,
+        estimatedMinutes: minutes,
+      };
+
+      const newModule = await modulesService.createModule(dto);
+      
+      setName('');
+      setDescription('');
+      setLevel('Beginner');
+      setEstimatedTime('20 Minutes');
+      setPoints(50);
+      setIsCreateModalOpen(false);
+
+      await loadModules();
+      setSelectedModuleId(newModule.slug);
+    } catch (err: any) {
+      console.error('Failed to create module:', err);
+      handleApiError(err);
     }
-    
-    setSelectedModuleId(finalId);
-    setName('');
-    setDescription('');
-    setLevel('Beginner');
-    setEstimatedTime('20 Minutes');
-    setPoints(50);
-    setIsCreateModalOpen(false);
   };
 
-  const handleDeleteModule = () => {
+  const handleDeleteModule = async () => {
     if (!selectedModule) return;
     if (confirm(`Delete "${selectedModule.name}"? This removes its island, slides, and quiz.`)) {
-      const remaining = modules.filter((m) => m.id !== selectedModule.id);
-      deleteModule(selectedModule.id);
-      setSelectedModuleId(remaining.length > 0 ? remaining[0].id : null);
+      try {
+        if (isDirtyRef.current) {
+          await flushChanges();
+        }
+
+        const remaining = modules.filter((m) => m.id !== selectedModule.id);
+        await modulesService.deleteModule(selectedModule.dbId);
+        
+        await loadModules();
+        setSelectedModuleId(remaining.length > 0 ? remaining[0].id : null);
+      } catch (err: any) {
+        console.error('Failed to delete module:', err);
+        handleApiError(err);
+      }
     }
   };
 
-  const handleDuplicateModule = () => {
+  const handleDuplicateModule = async () => {
     if (!selectedModule) return;
-    duplicateModule(selectedModule.id);
+    try {
+      if (isDirtyRef.current) {
+        await flushChanges();
+      }
+
+      const duplicated = await modulesService.duplicateModule(selectedModule.dbId);
+      
+      await loadModules();
+      setSelectedModuleId(duplicated.slug);
+    } catch (err: any) {
+      console.error('Failed to duplicate module:', err);
+      handleApiError(err);
+    }
+  };
+
+  const handleReorder = async (direction: 'up' | 'down') => {
+    if (!selectedModule) return;
+
+    if (isDirtyRef.current) {
+      await flushChanges();
+    }
+
+    const modulesCopy = [...modules];
+    const index = modulesCopy.findIndex((m) => m.id === selectedModule.id);
+    if (index === -1) return;
+
+    const levelVal = modulesCopy[index].level;
+    const sameLevelIndices = modulesCopy
+      .map((m, idx) => (m.level === levelVal ? idx : -1))
+      .filter((idx) => idx !== -1);
+      
+    const positionInLevel = sameLevelIndices.indexOf(index);
+    let targetIndex = -1;
+
+    if (direction === 'up' && positionInLevel > 0) {
+      targetIndex = sameLevelIndices[positionInLevel - 1];
+    } else if (direction === 'down' && positionInLevel < sameLevelIndices.length - 1) {
+      targetIndex = sameLevelIndices[positionInLevel + 1];
+    }
+
+    if (targetIndex === -1) return;
+
+    // 1. Optimistically update local state.
+    const temp = modulesCopy[index];
+    modulesCopy[index] = modulesCopy[targetIndex];
+    modulesCopy[targetIndex] = temp;
+    setModules(modulesCopy);
+
+    try {
+      // 2. Call POST /modules/reorder.
+      const ids = modulesCopy.map((m) => m.dbId);
+      await modulesService.reorderModules(ids);
+
+      // 3 & 4. Re-fetch modules from GET /modules and replace local state with server data.
+      await loadModules();
+    } catch (err: any) {
+      console.error('Failed to reorder modules:', err);
+      handleApiError(err);
+      await loadModules();
+    }
   };
 
   const currentTierModules = selectedModule ? modules.filter((m) => m.level === selectedModule.level) : [];
@@ -199,6 +586,47 @@ export default function RoadmapsBuilderPage() {
   const isLastInTier = tierIndex === currentTierModules.length - 1;
 
   const backgroundGradient = 'linear-gradient(to bottom, #bae6fd 0%, #e0f2fe 20%, #ffffff 40%, #e0f2fe 100%)';
+
+  // CMS Error Banner render block
+  if (error) {
+    return (
+      <div className="min-h-screen w-screen bg-slate-900 flex items-center justify-center p-6 text-slate-100">
+        <div className="max-w-xl w-full bg-rose-500/10 border-2 border-rose-500/20 rounded-3xl p-8 shadow-2xl flex flex-col items-center text-center gap-6">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/20 animate-bounce">
+            <Icons.AlertTriangle className="w-9 h-9" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-extrabold tracking-tight text-white font-heading">
+              CMS Runtime Contract Mismatch
+            </h2>
+            <p className="text-xs text-rose-450 leading-relaxed max-w-md mx-auto">
+              {error}
+            </p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-rose-600 hover:bg-rose-550 text-white font-black text-xs px-6 py-3 rounded-xl shadow-md transition-all font-heading"
+          >
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Layout-stable loader overlay
+  if (loading && modules.length === 0) {
+    return (
+      <div className="min-h-screen w-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+          <span className="text-xs text-slate-400 font-bold tracking-wider uppercase animate-pulse">
+            Loading Builder Canvas...
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-slate-50 text-slate-800 overflow-hidden font-sans">
@@ -278,7 +706,7 @@ export default function RoadmapsBuilderPage() {
                     <h3 className="text-xs font-black tracking-tight mt-0.5 font-heading text-slate-900">
                       Beginner Track
                     </h3>
-                    <p className="text-[9px] font-bold text-slate-450 mt-0.5">
+                    <p className="text-[9px] font-bold text-slate-455 mt-0.5">
                       {beginnerList.length} Modules Registered
                     </p>
                     <p className="text-[10px] leading-snug mt-1.5 font-medium text-slate-500">
@@ -296,7 +724,7 @@ export default function RoadmapsBuilderPage() {
                       top: `${coordinates[beginnerList[0].id].y - 80}px`
                     }}
                   >
-                    <div className="bg-[#0dce88] text-slate-950 font-black text-[9px] px-3 py-1 rounded-full border border-white tracking-widest shadow-md flex items-center gap-1 font-heading">
+                    <div className="bg-[#0dce88] text-slate-955 font-black text-[9px] px-3 py-1 rounded-full border border-white tracking-widest shadow-md flex items-center gap-1 font-heading">
                       START HERE
                     </div>
                     <div className="w-0.5 h-8 bg-rose-500 relative">
@@ -317,7 +745,7 @@ export default function RoadmapsBuilderPage() {
                     <h3 className="text-xs font-black tracking-tight mt-0.5 font-heading text-slate-900">
                       Intermediate Track
                     </h3>
-                    <p className="text-[9px] font-bold text-slate-450 mt-0.5">
+                    <p className="text-[9px] font-bold text-slate-455 mt-0.5">
                       {intermediateList.length} Modules Registered
                     </p>
                     <p className="text-[10px] leading-snug mt-1.5 font-medium text-slate-500">
@@ -338,7 +766,7 @@ export default function RoadmapsBuilderPage() {
                     <h3 className="text-xs font-black tracking-tight mt-0.5 font-heading text-slate-900">
                       Advanced Track
                     </h3>
-                    <p className="text-[9px] font-bold text-slate-450 mt-0.5">
+                    <p className="text-[9px] font-bold text-slate-455 mt-0.5">
                       {advancedList.length} Modules Registered
                     </p>
                     <p className="text-[10px] leading-snug mt-1.5 font-medium text-slate-500">
@@ -377,7 +805,7 @@ export default function RoadmapsBuilderPage() {
                       x={coord.x}
                       y={coord.y}
                       index={idx}
-                      onClick={() => setSelectedModuleId(module.id)}
+                      onClick={() => selectModule(module.id)}
                     />
                   );
                 })}
@@ -398,8 +826,11 @@ export default function RoadmapsBuilderPage() {
                   <h3 className="text-xs font-black text-slate-800 tracking-tight font-heading uppercase">
                     Module Settings
                   </h3>
+                  {saveStatus === 'saving' && <span className="text-[10px] text-indigo-500 font-bold animate-pulse font-heading lowercase tracking-normal ml-1">(saving...)</span>}
+                  {saveStatus === 'saved' && <span className="text-[10px] text-emerald-600 font-bold font-heading lowercase tracking-normal ml-1">(saved)</span>}
+                  {saveStatus === 'failed' && <span className="text-[10px] text-rose-500 font-bold font-heading lowercase tracking-normal ml-1">(failed to save)</span>}
                 </div>
-                <span className="text-[9px] font-black font-heading text-slate-500 uppercase tracking-widest bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
+                <span className="text-[9px] font-black font-heading text-slate-555 uppercase tracking-widest bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
                   {selectedModule.id.slice(0, 5).toUpperCase()}
                 </span>
               </div>
@@ -409,58 +840,58 @@ export default function RoadmapsBuilderPage() {
                 
                 {/* Module Name */}
                 <div className="space-y-1">
-                  <label className="font-extrabold text-slate-500 text-[10px] uppercase tracking-wider">Module Name</label>
+                  <label className="font-extrabold text-slate-550 text-[10px] uppercase tracking-wider">Module Name</label>
                   <input
                     type="text"
-                    value={selectedModule.name}
-                    onChange={(e) => updateModule(selectedModule.id, { name: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500 transition-colors"
+                    value={editName}
+                    onChange={(e) => handleFieldChange('name', e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-855 focus:bg-white focus:outline-none focus:border-indigo-500 transition-colors"
                   />
                 </div>
 
                 {/* Description */}
                 <div className="space-y-1">
-                  <label className="font-extrabold text-slate-500 text-[10px] uppercase tracking-wider">Description</label>
+                  <label className="font-extrabold text-slate-550 text-[10px] uppercase tracking-wider">Description</label>
                   <textarea
                     rows={3}
-                    value={selectedModule.description}
-                    onChange={(e) => updateModule(selectedModule.id, { description: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500 transition-colors resize-none leading-relaxed"
+                    value={editDescription}
+                    onChange={(e) => handleFieldChange('description', e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-855 focus:bg-white focus:outline-none focus:border-indigo-500 transition-colors resize-none leading-relaxed"
                   />
                 </div>
 
                 {/* XP & Time Inline */}
                 <div className="grid grid-cols-2 gap-3.5">
                   <div className="space-y-1">
-                    <label className="font-extrabold text-slate-500 text-[10px] uppercase tracking-wider">XP Points</label>
+                    <label className="font-extrabold text-slate-550 text-[10px] uppercase tracking-wider">XP Points</label>
                     <input
                       type="number"
                       min={10}
                       max={500}
-                      value={selectedModule.points}
-                      onChange={(e) => updateModule(selectedModule.id, { points: Number(e.target.value) })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500 transition-colors"
+                      value={editPoints}
+                      onChange={(e) => handleFieldChange('points', Number(e.target.value))}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-855 focus:bg-white focus:outline-none focus:border-indigo-500 transition-colors"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="font-extrabold text-slate-500 text-[10px] uppercase tracking-wider">Estimated Time</label>
+                    <label className="font-extrabold text-slate-555 text-[10px] uppercase tracking-wider">Estimated Time</label>
                     <input
                       type="text"
-                      value={selectedModule.estimatedTime}
-                      onChange={(e) => updateModule(selectedModule.id, { estimatedTime: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500 transition-colors"
+                      value={editEstimatedTime}
+                      onChange={(e) => handleFieldChange('estimatedTime', e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-855 focus:bg-white focus:outline-none focus:border-indigo-500 transition-colors"
                     />
                   </div>
                 </div>
 
                 {/* Tier Selection */}
                 <div className="space-y-1">
-                  <label className="font-extrabold text-slate-500 text-[10px] uppercase tracking-wider">Curriculum Tier</label>
+                  <label className="font-extrabold text-slate-555 text-[10px] uppercase tracking-wider">Curriculum Tier</label>
                   <div className="relative">
                     <select
-                      value={selectedModule.level}
-                      onChange={(e) => updateModule(selectedModule.id, { level: e.target.value as any })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer appearance-none font-bold"
+                      value={editLevel}
+                      onChange={(e) => handleFieldChange('level', e.target.value as any)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-855 focus:bg-white focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer appearance-none font-bold"
                     >
                       <option value="Beginner">Beginner Level</option>
                       <option value="Intermediate">Intermediate Level</option>
@@ -472,10 +903,10 @@ export default function RoadmapsBuilderPage() {
 
                 {/* Path Order Controls */}
                 <div className="space-y-1.5 border-t border-slate-100 pt-3">
-                  <label className="font-extrabold text-slate-500 text-[10px] uppercase tracking-wider block">Path Order Control</label>
+                  <label className="font-extrabold text-slate-555 text-[10px] uppercase tracking-wider block">Path Order Control</label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => reorderModule(selectedModule.id, 'up')}
+                      onClick={() => handleReorder('up')}
                       disabled={isFirstInTier}
                       className={cn(
                         "py-2 rounded-xl border font-bold flex items-center justify-center gap-1 transition-all text-[11px]",
@@ -488,7 +919,7 @@ export default function RoadmapsBuilderPage() {
                       Move Up
                     </button>
                     <button
-                      onClick={() => reorderModule(selectedModule.id, 'down')}
+                      onClick={() => handleReorder('down')}
                       disabled={isLastInTier}
                       className={cn(
                         "py-2 rounded-xl border font-bold flex items-center justify-center gap-1 transition-all text-[11px]",

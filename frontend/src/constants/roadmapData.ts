@@ -1,7 +1,7 @@
 export interface QuizQuestion {
   question: string;
   options: string[];
-  answerIndex: number;
+  answerIndex?: number;
   explanation: string;
 }
 

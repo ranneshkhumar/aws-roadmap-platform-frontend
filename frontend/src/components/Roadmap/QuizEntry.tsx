@@ -17,6 +17,7 @@ interface QuizEntryProps {
   isLast: boolean;
   shake: boolean;
   onSubmit: () => void;
+  isSubmitting?: boolean;
 }
 
 export const QuizEntry: React.FC<QuizEntryProps> = ({
@@ -29,7 +30,8 @@ export const QuizEntry: React.FC<QuizEntryProps> = ({
   onPrev,
   isLast,
   shake,
-  onSubmit
+  onSubmit,
+  isSubmitting = false
 }) => {
   return (
     <motion.div
@@ -102,10 +104,11 @@ export const QuizEntry: React.FC<QuizEntryProps> = ({
 
         {isLast ? (
           <button
+            disabled={isSubmitting}
             onClick={onSubmit}
-            className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-6 rounded-xl text-xs shadow-md shadow-blue-600/15 transition-all active:scale-[0.98]"
+            className="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-200 disabled:text-slate-400 disabled:pointer-events-none text-white font-bold py-2.5 px-6 rounded-xl text-xs shadow-md shadow-blue-600/15 transition-all active:scale-[0.98]"
           >
-            Submit Quiz
+            {isSubmitting ? 'Submitting...' : 'Submit Quiz'}
           </button>
         ) : (
           <button

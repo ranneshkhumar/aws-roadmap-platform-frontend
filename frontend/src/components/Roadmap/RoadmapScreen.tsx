@@ -12,10 +12,42 @@ import { BeginnerSummitLandmark, IntermediateSummitLandmark, CloudArchitectSummi
 import { IntermediateCloudsOverlay } from './IntermediateCloudsOverlay';
 import { AdvancedCloudsOverlay } from './AdvancedCloudsOverlay';
 import { RoadmapProgressUpdater } from './RoadmapProgressUpdater';
-import { useRoadmapStore } from '@/store/roadmapStore';
+import { modulesService, progressService } from '@/services/api';
 import { calculateRoadmapGeometry } from '@/lib/roadmapGeometry';
 import { cn } from '@/lib/utils';
+import { getAuthSession } from '@/lib/authHelper';
+import { authService } from '@/services/auth.service';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const tierToLevel = (tier: string): 'Beginner' | 'Intermediate' | 'Advanced' => {
+  if (tier === 'Associate') return 'Intermediate';
+  if (tier === 'Professional') return 'Advanced';
+  return 'Beginner';
+};
+
+const getIconForSlug = (slug: string): string => {
+  const map: Record<string, string> = {
+    fundamentals: 'Globe',
+    ec2: 'Cpu',
+    s3: 'Database',
+    iam: 'Shield',
+    vpc: 'Network',
+    rds: 'Server',
+    route53: 'Compass',
+    elasticloadbalancing: 'Shuffle',
+    autoscaling: 'ArrowUpCircle',
+    lambda: 'Zap',
+    dynamodb: 'HardDrive',
+    cloudwatch: 'Eye',
+    sns_sqs: 'Mail',
+    cloudtrail: 'FileText',
+    cloudfront: 'Tv',
+    ecs_eks: 'Box',
+    iam_advanced: 'Lock',
+    transit_gateway: 'GitMerge',
+  };
+  return map[slug] || 'Boxes';
+};
 
 const LevelIslandHeader: React.FC<{
   number: string;
@@ -80,15 +112,88 @@ interface VisualNode {
 
 export const RoadmapScreen: React.FC = () => {
   const router = useRouter();
-  const { modules, moduleStates, xp, streak } = useRoadmapStore();
+  const [modules, setModules] = useState<any[]>([]);
+  const [moduleStates, setModuleStates] = useState<Record<string, 'completed' | 'current' | 'locked'>>({});
+  const [xp, setXp] = useState<number>(0);
+  const [streak, setStreak] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
-    setRole(localStorage.getItem('role'));
+    const session = getAuthSession();
+    setRole(session.role);
+
+    let active = true;
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [dbModules, progress] = await Promise.all([
+          modulesService.getModules(),
+          progressService.getMyProgress(),
+        ]);
+        
+        if (!active) return;
+
+        // Map database modules to UI modules format
+        const mappedModules = dbModules.map((m) => ({
+          id: m.slug, // ID for visual coordinates/rendering is the slug
+          name: m.name,
+          points: m.xpPoints,
+          level: tierToLevel(m.tier),
+          description: m.description,
+          iconName: getIconForSlug(m.slug),
+          estimatedTime: `${m.estimatedMinutes} Minutes`,
+          learningPagesCount: 4, 
+          quizQuestionsCount: 3, 
+          tasks: [],
+          quiz: {
+            question: '',
+            options: [],
+            answerIndex: 0,
+            explanation: '',
+          },
+          learningContent: [],
+          dbId: m.id, // Keep reference to CUID
+        }));
+
+        // Sort modules by orderIndex to preserve path ordering
+        mappedModules.sort((a, b) => {
+          const modA = dbModules.find((m) => m.slug === a.id);
+          const modB = dbModules.find((m) => m.slug === b.id);
+          return (modA?.orderIndex ?? 0) - (modB?.orderIndex ?? 0);
+        });
+
+        // Map status for each module slug
+        const states: Record<string, 'completed' | 'current' | 'locked'> = {};
+        dbModules.forEach((m) => {
+          if (progress.completedModules.includes(m.id)) {
+            states[m.slug] = 'completed';
+          } else if (progress.unlockedModules.includes(m.id)) {
+            states[m.slug] = 'current';
+          } else {
+            states[m.slug] = 'locked';
+          }
+        });
+
+        setModules(mappedModules);
+        setModuleStates(states);
+        setXp(progress.currentXP);
+        setStreak(progress.streak);
+      } catch (err) {
+        console.error('Failed to load roadmap data:', err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadData();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleLogout = () => {
-    localStorage.clear();
+    authService.logout();
     router.push('/login');
   };
 
@@ -470,6 +575,17 @@ export const RoadmapScreen: React.FC = () => {
         {/* Animated Sky background */}
         <SkyBackground />
 
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/20 backdrop-blur-[2px] z-30 pointer-events-none">
+            <div className="flex flex-col items-center gap-3 bg-white/95 border border-slate-200/50 shadow-xl rounded-3xl p-6 pointer-events-auto">
+              <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+              <span className="text-xs text-slate-500 font-bold tracking-wider uppercase">
+                Loading Cloud Roadmap...
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Board container shifted down to not collide with header at scroll top */}
         <div 
           ref={boardRef}
@@ -684,7 +800,13 @@ export const RoadmapScreen: React.FC = () => {
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
               className="absolute bottom-16 left-0 w-80 mt-2"
             >
-              <RoadmapProgressUpdater showReset={true} />
+              <RoadmapProgressUpdater 
+                showReset={false} 
+                xp={xp}
+                streak={streak}
+                modules={modules}
+                moduleStates={moduleStates}
+              />
             </motion.div>
           )}
         </AnimatePresence>

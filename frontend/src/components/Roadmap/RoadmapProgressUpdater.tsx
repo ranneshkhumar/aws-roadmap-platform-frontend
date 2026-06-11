@@ -3,27 +3,39 @@
 import React, { useState } from 'react';
 import * as Icons from 'lucide-react';
 import { useRoadmapStore } from '@/store/roadmapStore';
-import { ROADMAP_MODULES } from '@/constants/roadmapData';
 import { cn } from '@/lib/utils';
 
 interface RoadmapProgressUpdaterProps {
   className?: string;
   showReset?: boolean;
+  xp?: number;
+  streak?: number;
+  modules?: any[];
+  moduleStates?: Record<string, 'completed' | 'current' | 'locked'>;
 }
 
 export const RoadmapProgressUpdater: React.FC<RoadmapProgressUpdaterProps> = ({
   className,
-  showReset = true
+  showReset = true,
+  xp: propXp,
+  streak: propStreak,
+  modules: propModules,
+  moduleStates: propModuleStates
 }) => {
-  const { moduleStates, xp, streak, resetProgress } = useRoadmapStore();
+  const store = useRoadmapStore();
+  const xp = propXp !== undefined ? propXp : store.xp;
+  const streak = propStreak !== undefined ? propStreak : store.streak;
+  const modules = propModules !== undefined ? propModules : store.modules;
+  const moduleStates = propModuleStates !== undefined ? propModuleStates : store.moduleStates;
+  
   const [showConfirmReset, setShowConfirmReset] = useState(false);
 
-  const completedCount = ROADMAP_MODULES.filter((m) => moduleStates[m.id] === 'completed').length;
-  const totalCount = ROADMAP_MODULES.length;
-  const percentage = Math.round((completedCount / totalCount) * 100);
+  const completedCount = modules.filter((m) => moduleStates[m.id] === 'completed').length;
+  const totalCount = modules.length;
+  const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   const handleReset = () => {
-    resetProgress();
+    store.resetProgress();
     setShowConfirmReset(false);
     // Reload page to reset internal react states
     window.location.reload();

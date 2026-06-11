@@ -2,18 +2,18 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getAuthSession } from '@/lib/authHelper';
 
 export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    const isAuth = localStorage.getItem('isAuthenticated') === 'true';
-    const role = localStorage.getItem('role');
+    const session = getAuthSession();
 
-    if (!isAuth || !role) {
+    if (!session.isAuthenticated || !session.role) {
       router.replace('/login');
     } else {
-      if (role === 'core') {
+      if (session.role === 'core') {
         router.replace('/core/roadmaps');
       } else {
         router.replace('/roadmap');

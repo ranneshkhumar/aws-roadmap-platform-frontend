@@ -4,14 +4,15 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppLayout } from '@/components/Layout/AppLayout';
 import { RoadmapScreen } from '@/components/Roadmap/RoadmapScreen';
+import { getAuthSession } from '@/lib/authHelper';
 
 export default function RoadmapPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const isAuth = localStorage.getItem('isAuthenticated') === 'true';
-    if (!isAuth) {
+    const session = getAuthSession();
+    if (!session.isAuthenticated) {
       router.replace('/login');
     } else {
       setLoading(false);
