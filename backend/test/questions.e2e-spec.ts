@@ -14,7 +14,7 @@ describe('Questions Module (e2e)', () => {
   let coreToken: string;
   let crewToken: string;
 
-  let testUserIds: string[] = [];
+  const testUserIds: string[] = [];
   let testModuleId: string;
 
   beforeAll(async () => {
@@ -23,7 +23,9 @@ describe('Questions Module (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
 
     prisma = app.get(PrismaService);
@@ -193,7 +195,7 @@ describe('Questions Module (e2e)', () => {
         .expect(200);
 
       expect(res.body).toHaveLength(2);
-      
+
       // Verify ordering is preserved based on orderIndex (Who created AWS should be first, What is S3 second)
       expect(res.body[0].question).toBe('Who created AWS?');
       expect(res.body[1].question).toBe('What is S3?');
@@ -207,7 +209,9 @@ describe('Questions Module (e2e)', () => {
       // Verify stored properties are accurate
       expect(res.body[0].correctAnswer).toBe('A');
       expect(res.body[1].optionC).toBe('Stripe Storage Solution');
-      expect(res.body[1].explanation).toBe('S3 stands for Simple Storage Service.');
+      expect(res.body[1].explanation).toBe(
+        'S3 stands for Simple Storage Service.',
+      );
     });
 
     it('should overwrite existing questions on subsequent syncs', async () => {

@@ -20,7 +20,9 @@ export class SlidesService {
       orderBy: { orderIndex: 'asc' },
     });
 
-    return slides.map(({ id, moduleId: _, createdAt, updatedAt, ...rest }) => rest);
+    return slides.map(
+      ({ id, moduleId: _, createdAt, updatedAt, ...rest }) => rest,
+    );
   }
 
   async syncSlides(moduleId: string, dto: BulkSyncSlidesDto) {
@@ -60,7 +62,9 @@ export class SlidesService {
         orderBy: { orderIndex: 'asc' },
       });
 
-      return savedSlides.map(({ id, moduleId: _, createdAt, updatedAt, ...rest }) => rest);
+      return savedSlides.map(
+        ({ id, moduleId: _, createdAt, updatedAt, ...rest }) => rest,
+      );
     });
   }
 }

@@ -65,7 +65,10 @@ export class ModulesController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CORE)
-  async update(@Param('id') id: string, @Body() updateModuleDto: UpdateModuleDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateModuleDto: UpdateModuleDto,
+  ) {
     return this.modulesService.update(id, updateModuleDto);
   }
 

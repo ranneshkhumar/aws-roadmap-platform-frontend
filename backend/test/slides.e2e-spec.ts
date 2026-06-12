@@ -14,7 +14,7 @@ describe('Slides Module (e2e)', () => {
   let coreToken: string;
   let crewToken: string;
 
-  let testUserIds: string[] = [];
+  const testUserIds: string[] = [];
   let testModuleId: string;
 
   beforeAll(async () => {
@@ -23,7 +23,9 @@ describe('Slides Module (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
 
     prisma = app.get(PrismaService);
@@ -181,7 +183,7 @@ describe('Slides Module (e2e)', () => {
         .expect(200);
 
       expect(res.body).toHaveLength(2);
-      
+
       // Verify ordering is preserved based on orderIndex (Welcome Slide should be first, Concept Slide second)
       expect(res.body[0].title).toBe('Welcome Slide');
       expect(res.body[1].title).toBe('Concept Slide');
@@ -195,7 +197,9 @@ describe('Slides Module (e2e)', () => {
       // Verify stored properties are accurate
       expect(res.body[0].layoutType).toBe('TEXT_ONLY');
       expect(res.body[1].layoutType).toBe('TEXT_IMAGE');
-      expect(res.body[1].imageUrl).toBe('data:image/png;base64,iVBORw0KGgoAAA...');
+      expect(res.body[1].imageUrl).toBe(
+        'data:image/png;base64,iVBORw0KGgoAAA...',
+      );
       expect(res.body[1].bullets).toEqual(['Point 1', 'Point 2']);
     });
 

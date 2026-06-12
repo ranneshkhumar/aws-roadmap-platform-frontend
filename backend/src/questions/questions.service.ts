@@ -20,7 +20,10 @@ export class QuestionsService {
       orderBy: { orderIndex: 'asc' },
     });
 
-    return questions.map(({ id, moduleId: _, correctAnswer: __, createdAt, updatedAt, ...rest }) => rest);
+    return questions.map(
+      ({ id, moduleId: _, correctAnswer: __, createdAt, updatedAt, ...rest }) =>
+        rest,
+    );
   }
 
   async syncQuestions(moduleId: string, dto: BulkSyncQuestionsDto) {
@@ -63,7 +66,9 @@ export class QuestionsService {
         orderBy: { orderIndex: 'asc' },
       });
 
-      return savedQuestions.map(({ id, moduleId: _, createdAt, updatedAt, ...rest }) => rest);
+      return savedQuestions.map(
+        ({ id, moduleId: _, createdAt, updatedAt, ...rest }) => rest,
+      );
     });
   }
 }

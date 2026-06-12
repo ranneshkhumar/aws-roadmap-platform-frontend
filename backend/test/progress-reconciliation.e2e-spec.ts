@@ -22,7 +22,9 @@ describe('Progress Reconciliation (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
 
     prisma = app.get(PrismaService);
@@ -68,7 +70,11 @@ describe('Progress Reconciliation (e2e)', () => {
   }, 30000);
 
   // Helper: create a module with a quiz question
-  async function createModule(name: string, orderIndex: number, tier = 'Fundamentals') {
+  async function createModule(
+    name: string,
+    orderIndex: number,
+    tier = 'Fundamentals',
+  ) {
     const mod = await prisma.module.create({
       data: {
         name,
@@ -115,7 +121,10 @@ describe('Progress Reconciliation (e2e)', () => {
   }
 
   // Helper: set module progress directly
-  async function setProgress(moduleId: string, status: 'LOCKED' | 'UNLOCKED' | 'COMPLETED') {
+  async function setProgress(
+    moduleId: string,
+    status: 'LOCKED' | 'UNLOCKED' | 'COMPLETED',
+  ) {
     await prisma.userModuleProgress.upsert({
       where: { userId_moduleId: { userId: learnerId, moduleId } },
       create: { userId: learnerId, moduleId, status },
@@ -133,7 +142,12 @@ describe('Progress Reconciliation (e2e)', () => {
   }
 
   describe('Scenario A: Learner completed all modules, new module inserted in middle', () => {
-    let moduleA: any, moduleB: any, moduleC: any, moduleD: any, moduleE: any, moduleF: any;
+    let moduleA: any,
+      moduleB: any,
+      moduleC: any,
+      moduleD: any,
+      moduleE: any,
+      moduleF: any;
     let moduleG: any;
 
     beforeAll(async () => {
@@ -156,7 +170,7 @@ describe('Progress Reconciliation (e2e)', () => {
       await completeModule(moduleF.id);
 
       // Verify all completed
-      let progress = await getProgress();
+      const progress = await getProgress();
       expect(progress.completedModules.length).toBe(6);
 
       // Insert G after B (orderIndex 2, shifting C-F)
@@ -175,23 +189,47 @@ describe('Progress Reconciliation (e2e)', () => {
         data: {
           moduleId: moduleG.id,
           question: 'Question G',
-          optionA: 'A', optionB: 'B', optionC: 'C', optionD: 'D',
-          correctAnswer: 'A', explanation: 'Exp', orderIndex: 0,
+          optionA: 'A',
+          optionB: 'B',
+          optionC: 'C',
+          optionD: 'D',
+          correctAnswer: 'A',
+          explanation: 'Exp',
+          orderIndex: 0,
         },
       });
 
       // Reindex C-F to make room: C=3, D=4, E=5, F=6
-      await prisma.module.update({ where: { id: moduleC.id }, data: { orderIndex: 3 } });
-      await prisma.module.update({ where: { id: moduleD.id }, data: { orderIndex: 4 } });
-      await prisma.module.update({ where: { id: moduleE.id }, data: { orderIndex: 5 } });
-      await prisma.module.update({ where: { id: moduleF.id }, data: { orderIndex: 6 } });
+      await prisma.module.update({
+        where: { id: moduleC.id },
+        data: { orderIndex: 3 },
+      });
+      await prisma.module.update({
+        where: { id: moduleD.id },
+        data: { orderIndex: 4 },
+      });
+      await prisma.module.update({
+        where: { id: moduleE.id },
+        data: { orderIndex: 5 },
+      });
+      await prisma.module.update({
+        where: { id: moduleF.id },
+        data: { orderIndex: 6 },
+      });
     }, 30000);
 
     it('should unlock only G (first missing), lock all others', async () => {
       const progress = await getProgress();
 
       expect(progress.completedModules.sort()).toEqual(
-        [moduleA.id, moduleB.id, moduleC.id, moduleD.id, moduleE.id, moduleF.id].sort()
+        [
+          moduleA.id,
+          moduleB.id,
+          moduleC.id,
+          moduleD.id,
+          moduleE.id,
+          moduleF.id,
+        ].sort(),
       );
       expect(progress.unlockedModules).toEqual([moduleG.id]);
     });
@@ -227,8 +265,10 @@ describe('Progress Reconciliation (e2e)', () => {
       await completeModule(moduleA.id);
       await completeModule(moduleB.id);
 
-      let progress = await getProgress();
-      expect(progress.completedModules.sort()).toEqual([moduleA.id, moduleB.id].sort());
+      const progress = await getProgress();
+      expect(progress.completedModules.sort()).toEqual(
+        [moduleA.id, moduleB.id].sort(),
+      );
       expect(progress.unlockedModules).toEqual([moduleC.id]);
 
       // Insert G before C (as new prerequisite)
@@ -247,19 +287,29 @@ describe('Progress Reconciliation (e2e)', () => {
         data: {
           moduleId: moduleG.id,
           question: 'Question G',
-          optionA: 'A', optionB: 'B', optionC: 'C', optionD: 'D',
-          correctAnswer: 'A', explanation: 'Exp', orderIndex: 0,
+          optionA: 'A',
+          optionB: 'B',
+          optionC: 'C',
+          optionD: 'D',
+          correctAnswer: 'A',
+          explanation: 'Exp',
+          orderIndex: 0,
         },
       });
 
       // Shift C to orderIndex 3
-      await prisma.module.update({ where: { id: moduleC.id }, data: { orderIndex: 3 } });
+      await prisma.module.update({
+        where: { id: moduleC.id },
+        data: { orderIndex: 3 },
+      });
     }, 30000);
 
     it('should unlock G, re-lock C (previously unlocked)', async () => {
       const progress = await getProgress();
 
-      expect(progress.completedModules.sort()).toEqual([moduleA.id, moduleB.id].sort());
+      expect(progress.completedModules.sort()).toEqual(
+        [moduleA.id, moduleB.id].sort(),
+      );
       expect(progress.unlockedModules).toEqual([moduleG.id]);
 
       // C should no longer be in unlockedModules
@@ -296,7 +346,9 @@ describe('Progress Reconciliation (e2e)', () => {
     it('should unlock G (first module of new island), lock H', async () => {
       const progress = await getProgress();
 
-      expect(progress.completedModules.sort()).toEqual([moduleA.id, moduleB.id].sort());
+      expect(progress.completedModules.sort()).toEqual(
+        [moduleA.id, moduleB.id].sort(),
+      );
       expect(progress.unlockedModules).toEqual([moduleG.id]);
     });
   });
@@ -315,14 +367,23 @@ describe('Progress Reconciliation (e2e)', () => {
       // Complete A only → B is UNLOCKED
       await completeModule(moduleA.id);
 
-      let progress = await getProgress();
+      const progress = await getProgress();
       expect(progress.completedModules).toEqual([moduleA.id]);
       expect(progress.unlockedModules).toEqual([moduleB.id]);
 
       // Reorder: C(0) A(1) B(2) — C is now first
-      await prisma.module.update({ where: { id: moduleC.id }, data: { orderIndex: 0 } });
-      await prisma.module.update({ where: { id: moduleA.id }, data: { orderIndex: 1 } });
-      await prisma.module.update({ where: { id: moduleB.id }, data: { orderIndex: 2 } });
+      await prisma.module.update({
+        where: { id: moduleC.id },
+        data: { orderIndex: 0 },
+      });
+      await prisma.module.update({
+        where: { id: moduleA.id },
+        data: { orderIndex: 1 },
+      });
+      await prisma.module.update({
+        where: { id: moduleB.id },
+        data: { orderIndex: 2 },
+      });
     }, 30000);
 
     it('should unlock C (now first in order, not completed), keep A completed, lock B', async () => {
@@ -376,7 +437,9 @@ describe('Progress Reconciliation (e2e)', () => {
     }, 30000);
 
     afterAll(async () => {
-      await prisma.userModuleProgress.deleteMany({ where: { userId: newLearnerId } });
+      await prisma.userModuleProgress.deleteMany({
+        where: { userId: newLearnerId },
+      });
       await prisma.user.deleteMany({ where: { id: newLearnerId } });
     }, 30000);
 
@@ -413,35 +476,71 @@ describe('Progress Reconciliation (e2e)', () => {
       // Insert X after A (orderIndex 1), Y after C (orderIndex 4)
       moduleX = await prisma.module.create({
         data: {
-          name: 'X', description: 'X desc', tier: 'Fundamentals',
-          xpPoints: 100, estimatedMinutes: 10, orderIndex: 1, slug: 'x',
+          name: 'X',
+          description: 'X desc',
+          tier: 'Fundamentals',
+          xpPoints: 100,
+          estimatedMinutes: 10,
+          orderIndex: 1,
+          slug: 'x',
         },
       });
       await prisma.quizQuestion.create({
         data: {
-          moduleId: moduleX.id, question: 'Q', optionA: 'A', optionB: 'B',
-          optionC: 'C', optionD: 'D', correctAnswer: 'A', explanation: 'E', orderIndex: 0,
+          moduleId: moduleX.id,
+          question: 'Q',
+          optionA: 'A',
+          optionB: 'B',
+          optionC: 'C',
+          optionD: 'D',
+          correctAnswer: 'A',
+          explanation: 'E',
+          orderIndex: 0,
         },
       });
 
       moduleY = await prisma.module.create({
         data: {
-          name: 'Y', description: 'Y desc', tier: 'Fundamentals',
-          xpPoints: 100, estimatedMinutes: 10, orderIndex: 4, slug: 'y',
+          name: 'Y',
+          description: 'Y desc',
+          tier: 'Fundamentals',
+          xpPoints: 100,
+          estimatedMinutes: 10,
+          orderIndex: 4,
+          slug: 'y',
         },
       });
       await prisma.quizQuestion.create({
         data: {
-          moduleId: moduleY.id, question: 'Q', optionA: 'A', optionB: 'B',
-          optionC: 'C', optionD: 'D', correctAnswer: 'A', explanation: 'E', orderIndex: 0,
+          moduleId: moduleY.id,
+          question: 'Q',
+          optionA: 'A',
+          optionB: 'B',
+          optionC: 'C',
+          optionD: 'D',
+          correctAnswer: 'A',
+          explanation: 'E',
+          orderIndex: 0,
         },
       });
 
       // Reindex: B=2, C=3, D=5, E=6
-      await prisma.module.update({ where: { id: moduleB.id }, data: { orderIndex: 2 } });
-      await prisma.module.update({ where: { id: moduleC.id }, data: { orderIndex: 3 } });
-      await prisma.module.update({ where: { id: moduleD.id }, data: { orderIndex: 5 } });
-      await prisma.module.update({ where: { id: moduleE.id }, data: { orderIndex: 6 } });
+      await prisma.module.update({
+        where: { id: moduleB.id },
+        data: { orderIndex: 2 },
+      });
+      await prisma.module.update({
+        where: { id: moduleC.id },
+        data: { orderIndex: 3 },
+      });
+      await prisma.module.update({
+        where: { id: moduleD.id },
+        data: { orderIndex: 5 },
+      });
+      await prisma.module.update({
+        where: { id: moduleE.id },
+        data: { orderIndex: 6 },
+      });
     }, 30000);
 
     it('should unlock only X (first missing in new order), lock everything after', async () => {
@@ -449,7 +548,7 @@ describe('Progress Reconciliation (e2e)', () => {
 
       // A B C still completed
       expect(progress.completedModules.sort()).toEqual(
-        [moduleA.id, moduleB.id, moduleC.id].sort()
+        [moduleA.id, moduleB.id, moduleC.id].sort(),
       );
 
       // X is first unsatisfied (new order: A=0, X=1, B=2, C=3, Y=4, D=5, E=6)

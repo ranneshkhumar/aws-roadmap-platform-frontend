@@ -12,18 +12,12 @@ import { BeginnerSummitLandmark, IntermediateSummitLandmark, CloudArchitectSummi
 import { IntermediateCloudsOverlay } from './IntermediateCloudsOverlay';
 import { AdvancedCloudsOverlay } from './AdvancedCloudsOverlay';
 import { RoadmapProgressUpdater } from './RoadmapProgressUpdater';
-import { modulesService, progressService } from '@/services/api';
+import { learningService, progressService } from '@/services/api';
 import { calculateRoadmapGeometry } from '@/lib/roadmapGeometry';
 import { cn } from '@/lib/utils';
 import { getAuthSession } from '@/lib/authHelper';
 import { authService } from '@/services/auth.service';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const tierToLevel = (tier: string): 'Beginner' | 'Intermediate' | 'Advanced' => {
-  if (tier === 'Associate') return 'Intermediate';
-  if (tier === 'Professional') return 'Advanced';
-  return 'Beginner';
-};
 
 const getIconForSlug = (slug: string): string => {
   const map: Record<string, string> = {
@@ -127,24 +121,24 @@ export const RoadmapScreen: React.FC = () => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const [dbModules, progress] = await Promise.all([
-          modulesService.getModules(),
+        const [topicDetail, progress] = await Promise.all([
+          learningService.getTopicDetail('aws-core'),
           progressService.getMyProgress(),
         ]);
 
         if (!active) return;
 
-        // Map database modules to UI modules format
-        const mappedModules = dbModules.map((m) => ({
-          id: m.slug, // ID for visual coordinates/rendering is the slug
+        // Map learning API modules to UI modules format
+        const mappedModules = topicDetail.modules.map((m) => ({
+          id: m.slug,
           name: m.name,
           points: m.xpPoints,
-          level: tierToLevel(m.tier),
+          level: m.level === 'BEGINNER' ? 'Beginner' : m.level === 'INTERMEDIATE' ? 'Intermediate' : 'Advanced',
           description: m.description,
           iconName: getIconForSlug(m.slug),
           estimatedTime: `${m.estimatedMinutes} Minutes`,
-          learningPagesCount: 4,
-          quizQuestionsCount: 3,
+          learningPagesCount: m.slideCount,
+          quizQuestionsCount: m.questionCount,
           tasks: [],
           quiz: {
             question: '',
@@ -153,22 +147,15 @@ export const RoadmapScreen: React.FC = () => {
             explanation: '',
           },
           learningContent: [],
-          dbId: m.id, // Keep reference to CUID
+          dbId: m.slug,
         }));
-
-        // Sort modules by orderIndex to preserve path ordering
-        mappedModules.sort((a, b) => {
-          const modA = dbModules.find((m) => m.slug === a.id);
-          const modB = dbModules.find((m) => m.slug === b.id);
-          return (modA?.orderIndex ?? 0) - (modB?.orderIndex ?? 0);
-        });
 
         // Map status for each module slug
         const states: Record<string, 'completed' | 'current' | 'locked'> = {};
-        dbModules.forEach((m) => {
-          if (progress.completedModules.includes(m.id)) {
+        topicDetail.modules.forEach((m) => {
+          if (m.status === 'COMPLETED') {
             states[m.slug] = 'completed';
-          } else if (progress.unlockedModules.includes(m.id)) {
+          } else if (m.status === 'UNLOCKED') {
             states[m.slug] = 'current';
           } else {
             states[m.slug] = 'locked';

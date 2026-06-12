@@ -15,8 +15,8 @@ describe('Curriculum Module (e2e)', () => {
   let crewToken: string;
   let enthusiastToken: string;
 
-  let testUserIds: string[] = [];
-  let testModuleIds: string[] = [];
+  const testUserIds: string[] = [];
+  const testModuleIds: string[] = [];
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -24,7 +24,9 @@ describe('Curriculum Module (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
 
     prisma = app.get(PrismaService);
@@ -218,8 +220,12 @@ describe('Curriculum Module (e2e)', () => {
 
       expect(res.body).toBeInstanceOf(Array);
       expect(res.body.length).toBe(3);
-      expect(res.body[0].orderIndex).toBeLessThanOrEqual(res.body[1].orderIndex);
-      expect(res.body[1].orderIndex).toBeLessThanOrEqual(res.body[2].orderIndex);
+      expect(res.body[0].orderIndex).toBeLessThanOrEqual(
+        res.body[1].orderIndex,
+      );
+      expect(res.body[1].orderIndex).toBeLessThanOrEqual(
+        res.body[2].orderIndex,
+      );
     });
 
     it('should return a module by ID publicly', async () => {

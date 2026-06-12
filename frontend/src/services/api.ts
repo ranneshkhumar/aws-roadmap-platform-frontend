@@ -269,3 +269,49 @@ export const progressService = {
     return res.data;
   },
 };
+
+// ============================================================================
+// 4. LEARNING API (Topic-based learner endpoints)
+// ============================================================================
+
+export interface LearningModuleSummary {
+  slug: string;
+  name: string;
+  description: string;
+  level: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+  tier: string;
+  xpPoints: number;
+  estimatedMinutes: number;
+  orderIndex: number;
+  status: 'LOCKED' | 'UNLOCKED' | 'COMPLETED';
+  score: number | null;
+  slideCount: number;
+  questionCount: number;
+}
+
+export interface LearningTopicProgress {
+  totalModules: number;
+  completedModules: number;
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+}
+
+export interface LearningTopicDetail {
+  slug: string;
+  name: string;
+  description: string;
+  orderIndex: number;
+  modules: LearningModuleSummary[];
+  progress: LearningTopicProgress;
+}
+
+export const learningService = {
+  getTopicDetail: async (slug: string): Promise<LearningTopicDetail> => {
+    const res = await apiClient.get<LearningTopicDetail>(`/learning/topics/${slug}`);
+    return res.data;
+  },
+
+  getContinueModule: async (): Promise<{ module: LearningModuleSummary & { topicSlug: string; topicName: string } | null }> => {
+    const res = await apiClient.get<{ module: (LearningModuleSummary & { topicSlug: string; topicName: string }) | null }>('/learning/continue');
+    return res.data;
+  },
+};

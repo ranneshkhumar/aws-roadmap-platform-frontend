@@ -6,7 +6,11 @@ import { User, Role } from '../../generated/prisma/client.js';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: { name: string; email: string; passwordHash: string }): Promise<User> {
+  async create(data: {
+    name: string;
+    email: string;
+    passwordHash: string;
+  }): Promise<User> {
     return this.prisma.user.create({
       data: {
         ...data,
@@ -81,7 +85,9 @@ export class UsersService {
     const completedModules = user.progress.map((p) => ({
       id: p.moduleId,
       name: p.module.name,
-      completedAt: p.completedAt ? p.completedAt.toISOString() : p.updatedAt.toISOString(),
+      completedAt: p.completedAt
+        ? p.completedAt.toISOString()
+        : p.updatedAt.toISOString(),
     }));
 
     // Group attempts by moduleId
@@ -139,7 +145,9 @@ export class UsersService {
   }
 }
 
-export function calculateLearnerLevel(xp: number): 'Beginner' | 'Intermediate' | 'Advanced' {
+export function calculateLearnerLevel(
+  xp: number,
+): 'Beginner' | 'Intermediate' | 'Advanced' {
   if (xp < 1000) return 'Beginner';
   if (xp < 2500) return 'Intermediate';
   return 'Advanced';

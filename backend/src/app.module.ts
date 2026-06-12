@@ -10,6 +10,8 @@ import { SlidesModule } from './slides/slides.module';
 import { QuestionsModule } from './questions/questions.module';
 import { ProgressModule } from './progress/progress.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { TopicsModule } from './topics/topics.module';
+import { LearningModule } from './learning/learning.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { UploadsModule } from './uploads/uploads.module';
     QuestionsModule,
     ProgressModule,
     UploadsModule,
+    TopicsModule,
+    LearningModule,
   ],
   controllers: [AppController],
   providers: [AppService],

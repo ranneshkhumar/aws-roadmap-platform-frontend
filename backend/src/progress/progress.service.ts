@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuizAttemptDto } from './dto/quiz-attempt.dto';
 
@@ -36,7 +40,9 @@ export class ProgressService {
     });
 
     if (allModules.length > 0) {
-      const progressMap = new Map(progressList.map((p) => [p.moduleId, p.status]));
+      const progressMap = new Map(
+        progressList.map((p) => [p.moduleId, p.status]),
+      );
       let reconciledUnlock: string | null = null;
 
       for (const mod of allModules) {
@@ -104,7 +110,11 @@ export class ProgressService {
     return { status: 'LOCKED' };
   }
 
-  async submitQuizAttempt(userId: string, moduleId: string, dto: QuizAttemptDto) {
+  async submitQuizAttempt(
+    userId: string,
+    moduleId: string,
+    dto: QuizAttemptDto,
+  ) {
     const module = await this.prisma.module.findUnique({
       where: { id: moduleId },
     });
@@ -127,11 +137,19 @@ export class ProgressService {
     let correctAnswersCount = 0;
     const totalQuestionsCount = questions.length;
 
-    const answerRecords: { questionId: string; selectedAnswer: string; isCorrect: boolean }[] = [];
+    const answerRecords: {
+      questionId: string;
+      selectedAnswer: string;
+      isCorrect: boolean;
+    }[] = [];
     for (const question of questions) {
-      const userAnswer = dto.answers.find((a) => a.questionOrder === question.orderIndex);
+      const userAnswer = dto.answers.find(
+        (a) => a.questionOrder === question.orderIndex,
+      );
       const selectedAnswer = userAnswer ? userAnswer.selectedAnswer : '';
-      const isCorrect = userAnswer ? userAnswer.selectedAnswer === question.correctAnswer : false;
+      const isCorrect = userAnswer
+        ? userAnswer.selectedAnswer === question.correctAnswer
+        : false;
 
       if (isCorrect) {
         correctAnswersCount++;
@@ -152,13 +170,17 @@ export class ProgressService {
         },
       });
 
-      const isAlreadyCompleted = existingProgress && existingProgress.status === 'COMPLETED';
+      const isAlreadyCompleted =
+        existingProgress && existingProgress.status === 'COMPLETED';
 
       // XP calculation: moduleXP + (correctAnswers / totalQuestions) * moduleXP
       // If already completed, award 0 XP (anti-farming rule)
       const xpEarned = isAlreadyCompleted
         ? 0
-        : Math.round(module.xpPoints + (correctAnswersCount / totalQuestionsCount) * module.xpPoints);
+        : Math.round(
+            module.xpPoints +
+              (correctAnswersCount / totalQuestionsCount) * module.xpPoints,
+          );
 
       // 1. Store QuizAttempt
       const attempt = await tx.quizAttempt.create({
@@ -263,7 +285,7 @@ export class ProgressService {
         // If already completed, just update the score if needed (keep highest)
         const currentBestScore = existingProgress.score ?? 0;
         const newScore = Math.max(currentBestScore, correctAnswersCount);
-        
+
         await tx.userModuleProgress.update({
           where: {
             userId_moduleId: { userId, moduleId },
@@ -278,7 +300,9 @@ export class ProgressService {
         attemptId: attempt.id,
         correctAnswers: correctAnswersCount,
         totalQuestions: totalQuestionsCount,
-        percentage: Math.round((correctAnswersCount / totalQuestionsCount) * 100),
+        percentage: Math.round(
+          (correctAnswersCount / totalQuestionsCount) * 100,
+        ),
         xpEarned,
       };
     });
@@ -309,7 +333,12 @@ export class ProgressService {
       completedAt: attempt.attemptedAt.toISOString(),
       answers: attempt.answers.map((a) => ({
         question: a.question.question,
-        options: [a.question.optionA, a.question.optionB, a.question.optionC, a.question.optionD],
+        options: [
+          a.question.optionA,
+          a.question.optionB,
+          a.question.optionC,
+          a.question.optionD,
+        ],
         selectedAnswer: a.selectedAnswer,
         correctAnswer: a.question.correctAnswer,
         isCorrect: a.isCorrect,

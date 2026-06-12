@@ -20,6 +20,12 @@ enum ProgressStatus {
   COMPLETED
 }
 
+enum ModuleLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
 model User {
   id           String @id @default(cuid())
   name         String
@@ -37,6 +43,18 @@ model User {
   attempts QuizAttempt[]
 }
 
+model Topic {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String   @unique
+  description String   @default("")
+  orderIndex  Int      @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  modules Module[]
+}
+
 model Module {
   id   String @id @default(cuid())
   slug String @unique
@@ -51,13 +69,19 @@ model Module {
 
   orderIndex Int
 
+  topicId String?
+  level   ModuleLevel?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  topic     Topic?            @relation(fields: [topicId], references: [id], onDelete: SetNull)
   slides    LearningSlide[]
   questions QuizQuestion[]
   progress  UserModuleProgress[]
   attempts  QuizAttempt[]
+
+  @@index([topicId, level])
 }
 
 model LearningSlide {

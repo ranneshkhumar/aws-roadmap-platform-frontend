@@ -64,7 +64,7 @@ export class ModulesService {
 
   async create(dto: CreateModuleDto): Promise<Module> {
     const slug = await this.generateUniqueSlug(dto.name);
-    
+
     let orderIndex = dto.orderIndex;
     if (orderIndex === undefined || orderIndex === null) {
       const maxModule = await this.prisma.module.findFirst({
@@ -229,7 +229,7 @@ export class ModulesService {
           this.prisma.module.update({
             where: { id },
             data: { orderIndex: index },
-          })
+          }),
         );
       }
     }

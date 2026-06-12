@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Param, Body, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { ProgressService } from './progress.service';
 import { QuizAttemptDto } from './dto/quiz-attempt.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -14,10 +22,7 @@ export class ProgressController {
   }
 
   @Get('modules/:moduleId/progress')
-  async getModuleProgress(
-    @Param('moduleId') moduleId: string,
-    @Request() req,
-  ) {
+  async getModuleProgress(@Param('moduleId') moduleId: string, @Request() req) {
     return this.progressService.getModuleProgress(req.user.id, moduleId);
   }
 
@@ -31,10 +36,7 @@ export class ProgressController {
   }
 
   @Get('modules/:moduleId/quiz/review')
-  async getQuizReview(
-    @Param('moduleId') moduleId: string,
-    @Request() req,
-  ) {
+  async getQuizReview(@Param('moduleId') moduleId: string, @Request() req) {
     return this.progressService.getQuizReview(req.user.id, moduleId);
   }
 }

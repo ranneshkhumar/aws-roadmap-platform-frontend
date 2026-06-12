@@ -317,7 +317,8 @@ const staticModules: ModuleData[] = [
     learningContent: [
       { title: 'Introduction to Amazon Aurora', content: ['Amazon Aurora is a cloud-native relational database engine offering high performance and availability.', 'It is compatible with MySQL and PostgreSQL, allowing you to run existing apps without modifications.', 'It features a distributed, fault-tolerant, self-healing storage system that auto-scales up to 128TB.'] },
       { title: 'Aurora High Availability & Storage', content: ['Aurora replicates data six ways across three Availability Zones.', 'It tolerates the loss of up to two copies of data without affecting write availability, and three copies without affecting read availability.'] },
-      { title: 'Aurora Serverless', content: ['Aurora Serverless is an on-demand, auto-scaling configuration for Aurora.', 'It automatically starts up, shuts down, and scales capacity up or down based on your application\'s needs, so you only pay for actual database capacity used.'] }
+      { title: 'Aurora Serverless', content: ['Aurora Serverless is an on-demand, auto-scaling configuration for Aurora.', 'It automatically starts up, shuts down, and scales capacity up or down based on your application\'s needs, so you only pay for actual database capacity used.'] },
+      { title: 'Aurora Global Database', content: ['Aurora Global Database allows you to replicate data across multiple AWS Regions with low-latency reads.', 'It supports managed, active-passive failover to a secondary region for disaster recovery.', 'Global Database can replicate to up to five secondary regions with typical replication lag under one second.'] }
     ]
   },
 
