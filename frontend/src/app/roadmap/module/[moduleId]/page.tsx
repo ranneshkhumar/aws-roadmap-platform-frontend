@@ -114,7 +114,7 @@ export default function ModulePage({ params }: { params: Promise<{ moduleId: str
         const activeModule = dbModules.find((m) => m.slug === moduleId);
 
         if (!activeModule) {
-          router.replace('/roadmap');
+          router.replace('/learn');
           return;
         }
 
@@ -129,7 +129,7 @@ export default function ModulePage({ params }: { params: Promise<{ moduleId: str
         // Unlock Validation
         if (!isCompleted && !isUnlocked) {
           console.warn(`Module "${moduleId}" (ID: ${dbId}) is locked for this user.`);
-          router.replace('/roadmap');
+          router.replace('/learn');
           return;
         }
 

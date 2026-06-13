@@ -6,6 +6,7 @@ export class TopicSummaryDto {
   totalModules: number;
   completedModules: number;
   status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+  unlocked: boolean;
 }
 
 export class TopicListResponseDto {

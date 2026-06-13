@@ -16,7 +16,7 @@ export default function Home() {
       if (session.role === 'core') {
         router.replace('/core/roadmaps');
       } else {
-        router.replace('/roadmap');
+        router.replace('/learn');
       }
     }
   }, [router]);

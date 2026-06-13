@@ -35,11 +35,11 @@ export default function CoreLayout({ children }: CoreLayoutProps) {
       if (pathname.startsWith('/core/learners')) {
         setLoading(false);
       } else {
-        router.replace('/roadmap');
+        router.replace('/learn');
       }
     } else {
       // Enthusiasts redirected out
-      router.replace('/roadmap');
+      router.replace('/learn');
     }
   }, [router, pathname]);
 

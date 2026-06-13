@@ -304,7 +304,23 @@ export interface LearningTopicDetail {
   progress: LearningTopicProgress;
 }
 
+export interface TopicSummary {
+  slug: string;
+  name: string;
+  description: string;
+  orderIndex: number;
+  totalModules: number;
+  completedModules: number;
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+  unlocked: boolean;
+}
+
 export const learningService = {
+  getTopicList: async (): Promise<TopicSummary[]> => {
+    const res = await apiClient.get<{ topics: TopicSummary[] }>('/learning/topics');
+    return res.data.topics;
+  },
+
   getTopicDetail: async (slug: string): Promise<LearningTopicDetail> => {
     const res = await apiClient.get<LearningTopicDetail>(`/learning/topics/${slug}`);
     return res.data;

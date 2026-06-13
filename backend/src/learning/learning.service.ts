@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ModuleLevel, ProgressStatus } from '../../generated/prisma/client.js';
 import { TopicListResponseDto, TopicSummaryDto } from './dto/topic-summary.dto';
@@ -21,6 +21,39 @@ const LEVEL_ORDER: Record<ModuleLevel, number> = {
 @Injectable()
 export class LearningService {
   constructor(private prisma: PrismaService) {}
+
+  private computeTopicProgress(
+    topicOrderIndex: number,
+    moduleIds: string[],
+    progressMap: Map<string, ProgressStatus>,
+    previousTopicStatus?: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED',
+  ): {
+    status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+    unlocked: boolean;
+    totalModules: number;
+    completedModules: number;
+  } {
+    const totalModules = moduleIds.length;
+    const completedModules = moduleIds.filter(
+      (id) => progressMap.get(id) === 'COMPLETED',
+    ).length;
+
+    let status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' = 'NOT_STARTED';
+    if (completedModules === totalModules && totalModules > 0) {
+      status = 'COMPLETED';
+    } else if (completedModules > 0) {
+      status = 'IN_PROGRESS';
+    }
+
+    let unlocked = false;
+    if (topicOrderIndex === 0) {
+      unlocked = true;
+    } else {
+      unlocked = previousTopicStatus === 'COMPLETED';
+    }
+
+    return { status, unlocked, totalModules, completedModules };
+  }
 
   async findTopics(userId: string): Promise<TopicListResponseDto> {
     const [topics, allProgress] = await Promise.all([
@@ -69,30 +102,31 @@ export class LearningService {
       }
     }
 
-    const topicSummaries: TopicSummaryDto[] = topics.map((topic) => {
+    const topicSummaries: TopicSummaryDto[] = [];
+    let previousStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | undefined;
+
+    for (const topic of topics) {
       const moduleIds = topicModuleIds.get(topic.id) || [];
-      const totalModules = moduleIds.length;
-      const completedModules = moduleIds.filter(
-        (id) => progressMap.get(id) === 'COMPLETED',
-      ).length;
+      const result = this.computeTopicProgress(
+        topic.orderIndex,
+        moduleIds,
+        progressMap,
+        previousStatus,
+      );
 
-      let status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' = 'NOT_STARTED';
-      if (completedModules === totalModules && totalModules > 0) {
-        status = 'COMPLETED';
-      } else if (completedModules > 0) {
-        status = 'IN_PROGRESS';
-      }
-
-      return {
+      topicSummaries.push({
         slug: topic.slug,
         name: topic.name,
         description: topic.description,
         orderIndex: topic.orderIndex,
-        totalModules,
-        completedModules,
-        status,
-      };
-    });
+        totalModules: result.totalModules,
+        completedModules: result.completedModules,
+        status: result.status,
+        unlocked: result.unlocked,
+      });
+
+      previousStatus = result.status;
+    }
 
     return { topics: topicSummaries };
   }
@@ -111,6 +145,44 @@ export class LearningService {
 
     if (!topic) {
       throw new NotFoundException(`Topic with slug "${slug}" not found`);
+    }
+
+    // Check topic unlock status
+    if (topic.orderIndex > 0) {
+      const previousTopic = await this.prisma.topic.findFirst({
+        where: { orderIndex: topic.orderIndex - 1 },
+        select: { id: true },
+      });
+
+      if (previousTopic) {
+        const previousModules = await this.prisma.module.findMany({
+          where: { topicId: previousTopic.id },
+          select: { id: true },
+        });
+
+        const previousModuleIds = previousModules.map((m) => m.id);
+        const previousProgress = await this.prisma.userModuleProgress.findMany({
+          where: { userId, moduleId: { in: previousModuleIds } },
+          select: { moduleId: true, status: true },
+        });
+
+        const previousProgressMap = new Map<string, ProgressStatus>();
+        for (const p of previousProgress) {
+          previousProgressMap.set(p.moduleId, p.status);
+        }
+
+        const previousResult = this.computeTopicProgress(
+          0, // orderIndex doesn't matter for status computation
+          previousModuleIds,
+          previousProgressMap,
+        );
+
+        if (previousResult.status !== 'COMPLETED') {
+          throw new ForbiddenException(
+            'Topic is locked. Complete the previous topic first.',
+          );
+        }
+      }
     }
 
     const modules = await this.prisma.module.findMany({
@@ -198,23 +270,20 @@ export class LearningService {
       };
     });
 
-    const totalModules = modules.length;
-    const completedModules = moduleSummaries.filter(
-      (m) => m.status === 'COMPLETED',
-    ).length;
-
-    let topicStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' =
-      'NOT_STARTED';
-    if (completedModules === totalModules && totalModules > 0) {
-      topicStatus = 'COMPLETED';
-    } else if (completedModules > 0) {
-      topicStatus = 'IN_PROGRESS';
+    const statusOnlyMap = new Map<string, ProgressStatus>();
+    for (const [id, data] of progressMap) {
+      statusOnlyMap.set(id, data.status);
     }
+    const topicProgressResult = this.computeTopicProgress(
+      topic.orderIndex,
+      moduleIds,
+      statusOnlyMap,
+    );
 
     const progress: TopicProgressDto = {
-      totalModules,
-      completedModules,
-      status: topicStatus,
+      totalModules: topicProgressResult.totalModules,
+      completedModules: topicProgressResult.completedModules,
+      status: topicProgressResult.status,
     };
 
     return {

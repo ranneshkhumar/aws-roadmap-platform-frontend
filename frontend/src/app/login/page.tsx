@@ -22,7 +22,7 @@ export default function LoginPage() {
       if (session.role === 'core') {
         router.replace('/core/roadmaps');
       } else {
-        router.replace('/roadmap');
+        router.replace('/learn');
       }
     }
   }, [router]);
@@ -41,7 +41,7 @@ export default function LoginPage() {
       if (session.role === 'core') {
         router.push('/core/roadmaps');
       } else {
-        router.push('/roadmap');
+        router.push('/learn');
       }
     } catch (err) {
       const apiError = err as ApiError;

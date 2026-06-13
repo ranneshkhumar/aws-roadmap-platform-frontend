@@ -104,7 +104,7 @@ interface VisualNode {
   iconName?: string;
 }
 
-export const RoadmapScreen: React.FC = () => {
+export const RoadmapScreen: React.FC<{ topicSlug: string }> = ({ topicSlug }) => {
   const router = useRouter();
   const [modules, setModules] = useState<any[]>([]);
   const [moduleStates, setModuleStates] = useState<Record<string, 'completed' | 'current' | 'locked'>>({});
@@ -122,7 +122,7 @@ export const RoadmapScreen: React.FC = () => {
       try {
         setLoading(true);
         const [topicDetail, progress] = await Promise.all([
-          learningService.getTopicDetail('aws-core'),
+          learningService.getTopicDetail(topicSlug),
           progressService.getMyProgress(),
         ]);
 

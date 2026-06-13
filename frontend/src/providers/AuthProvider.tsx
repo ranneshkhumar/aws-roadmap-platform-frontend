@@ -64,7 +64,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Protect routes if guest is attempting to access protected layout/pages
           const isCoreRoute = pathname.startsWith('/core');
           const isRoadmapRoute = pathname.startsWith('/roadmap');
-          if (isCoreRoute || isRoadmapRoute) {
+          const isLearnRoute = pathname.startsWith('/learn');
+          if (isCoreRoute || isRoadmapRoute || isLearnRoute) {
             router.replace('/login');
           }
         }
